@@ -6,6 +6,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- .editorconfig のコードスタイル規則(IDE****)をビルド時に検証する。
+         Hookの dotnet format whitespace で自動修正されるのはレイアウト規則のみで、
+         var の使い分けや using の並び順などはここで検出する。 -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- IDE0005(不要なusingの削除)はドキュメント生成パスを通らないと判定できないため、
+         Roslynの制約により GenerateDocumentationFile が必須。
+         ただし有効にすると CS1591(publicメンバのXMLコメント欠落)が警告として出るため、
+         TreatWarningsAsErrors と併用するとビルドが落ちる。XMLコメントは強制しないので抑制する。 -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
 </Project>
