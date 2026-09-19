@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MkRss.Core/MkRss.Core.csproj" />
+    <Project Path="src/MkRss.Infrastructure/MkRss.Infrastructure.csproj" />
+    <Project Path="src/MkRss.Web/MkRss.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MkRss.Core.Tests/MkRss.Core.Tests.csproj" />
+    <Project Path="tests/MkRss.Infrastructure.Tests/MkRss.Infrastructure.Tests.csproj" />
+  </Folder>
+</Solution>
