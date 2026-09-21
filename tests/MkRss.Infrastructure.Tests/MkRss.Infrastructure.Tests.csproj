@@ -9,7 +9,17 @@
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- スキーマの正は supabase/migrations/ のSQLファイル。
+       テストはそれを名前順に適用したDBに対して実行するため、出力ディレクトリへ複製する。 -->
   <ItemGroup>
+    <Content Include="..\..\supabase\migrations\*.sql"
+             Link="Migrations\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="xunit.v3.mtp-v2" />
   </ItemGroup>
 
