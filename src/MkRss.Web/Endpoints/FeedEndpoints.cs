@@ -45,7 +45,10 @@ public static class FeedEndpoints {
         FeedDefinition definition = new(
             Id: feed.Site.Id,
             Title: feed.Site.Name,
-            FeedUrl: new Uri(request.GetDisplayUrl()),
+            FeedUrl: FeedUrlResolver.Resolve(
+                options.PublicBaseUrl,
+                new Uri(request.GetDisplayUrl()),
+                request.Path + request.QueryString),
             SiteUrl: feed.Site.PageUrl);
 
         DateTimeOffset updatedAt = feed.Entries.Count > 0
