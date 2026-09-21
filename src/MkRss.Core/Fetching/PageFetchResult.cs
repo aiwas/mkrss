@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MkRss.Core.Fetching;
 
@@ -12,6 +13,7 @@ namespace MkRss.Core.Fetching;
 /// <param name="FetchedAt">取得を試みた日時。</param>
 public sealed record PageFetchResult(string? Html, string? FailureReason, DateTimeOffset FetchedAt) {
     /// <summary>取得に成功したかどうか。</summary>
+    [MemberNotNullWhen(true, nameof(Html))]
     public bool IsSuccess => Html is not null;
 
     /// <summary>成功した結果を作る。</summary>

@@ -49,6 +49,24 @@ public abstract class DatabaseTestBase : IAsyncLifetime {
         return (T)(await command.ExecuteScalarAsync())!;
     }
 
+    /// <summary>
+    /// 記事の保存先として使えるサイトを1件登録し、その識別子を返す。
+    /// </summary>
+    protected async Task<Guid> InsertSiteAsync(string slug = "example-com-news-a1b2c3d4") {
+        await ExecuteAsync(
+            """
+            insert into sites (
+                slug, name, page_url,
+                item_selector, title_selector, link_selector, link_attribute,
+                date_selector, date_attribute)
+            values ($1, 'お知らせ一覧', 'https://example.com/news/',
+                '.news-item', '.news-title', 'a', 'href', '.news-date', 'datetime')
+            """,
+            slug);
+
+        return await ScalarAsync<Guid>("select id from sites where slug = $1", slug);
+    }
+
     private NpgsqlCommand CreateCommand(string sql, object?[] values) {
         NpgsqlCommand command = Fixture.DataSource.CreateCommand(sql);
 

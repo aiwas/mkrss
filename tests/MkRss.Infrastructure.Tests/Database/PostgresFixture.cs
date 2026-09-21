@@ -17,7 +17,7 @@ public sealed class PostgresFixture : IAsyncLifetime {
     /// 本番と同じイメージを使う。拡張機能や既定設定の差異で結果が変わらないようにするため、
     /// タグは固定し、更新は明示的に行う。
     /// </summary>
-    private const string Image = "supabase/postgres:17.6.1.173";
+    private const string Image = "supabase/postgres:17.6.1.166";
 
     /// <summary>
     /// イメージ内蔵の初期化スクリプト(<c>migrate.sh</c>)が接続するロール名。
