@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <UserSecretsId>7445786d-1531-48a8-a42c-d5298264c9ca</UserSecretsId>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MkRss.Core\MkRss.Core.csproj" />
     <ProjectReference Include="..\MkRss.Infrastructure\MkRss.Infrastructure.csproj" />
