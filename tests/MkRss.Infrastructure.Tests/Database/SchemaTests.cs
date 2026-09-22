@@ -30,10 +30,11 @@ public sealed class SchemaTests : DatabaseTestBase {
         long tables = await ScalarAsync<long>(
             """
             select count(*) from information_schema.tables
-            where table_schema = 'public' and table_name in ('sites', 'articles', 'crawl_runs')
+            where table_schema = 'public'
+              and table_name in ('sites', 'articles', 'crawl_runs', 'crawl_run_sites')
             """);
 
-        Assert.Equal(3, tables);
+        Assert.Equal(4, tables);
     }
 
     [Theory]
@@ -149,16 +150,108 @@ public sealed class SchemaTests : DatabaseTestBase {
     }
 
     [Fact]
+    public async Task CrawlRunSites_UndefinedOutcome_IsRejected() {
+        (Guid runId, Guid siteId) = await InsertRunAndSiteAsync();
+
+        PostgresException exception = await Assert.ThrowsAsync<PostgresException>(
+            () => InsertRunSiteAsync(runId, siteId, "unknown"));
+
+        Assert.Equal("crawl_run_sites_outcome_check", exception.ConstraintName);
+    }
+
+    [Fact]
+    public async Task CrawlRunSites_FailureReasonOnSuccess_IsRejected() {
+        // 成功した行に失敗理由が入っているのは矛盾している。
+        (Guid runId, Guid siteId) = await InsertRunAndSiteAsync();
+
+        PostgresException exception = await Assert.ThrowsAsync<PostgresException>(
+            () => InsertRunSiteAsync(runId, siteId, "succeeded", failureReason: "503"));
+
+        Assert.Equal("crawl_run_sites_failure_reason_check", exception.ConstraintName);
+    }
+
+    [Fact]
+    public async Task CrawlRunSites_FailureWithoutReason_IsAccepted() {
+        // 理由を取得できない失敗を想定し、逆向きは強制しない。
+        (Guid runId, Guid siteId) = await InsertRunAndSiteAsync();
+
+        await InsertRunSiteAsync(runId, siteId, "fetch_failed");
+
+        Assert.Equal(1, await ScalarAsync<long>("select count(*) from crawl_run_sites"));
+    }
+
+    [Fact]
+    public async Task CrawlRunSites_SameSiteTwiceInOneRun_IsRejected() {
+        (Guid runId, Guid siteId) = await InsertRunAndSiteAsync();
+
+        await InsertRunSiteAsync(runId, siteId, "succeeded");
+
+        PostgresException exception = await Assert.ThrowsAsync<PostgresException>(
+            () => InsertRunSiteAsync(runId, siteId, "succeeded"));
+
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, exception.SqlState);
+        Assert.Equal("crawl_run_sites_run_site_unique", exception.ConstraintName);
+    }
+
+    [Fact]
+    public async Task DeleteCrawlRun_CascadesToCrawlRunSites() {
+        (Guid runId, Guid siteId) = await InsertRunAndSiteAsync();
+        await InsertRunSiteAsync(runId, siteId, "succeeded");
+
+        await ExecuteAsync("delete from crawl_runs where id = $1", runId);
+
+        Assert.Equal(0, await ScalarAsync<long>("select count(*) from crawl_run_sites"));
+    }
+
+    [Fact]
+    public async Task DeleteSite_CascadesToCrawlRunSites() {
+        (Guid runId, Guid siteId) = await InsertRunAndSiteAsync();
+        await InsertRunSiteAsync(runId, siteId, "succeeded");
+
+        await ExecuteAsync("delete from sites where id = $1", siteId);
+
+        Assert.Equal(0, await ScalarAsync<long>("select count(*) from crawl_run_sites"));
+    }
+
+    [Fact]
     public async Task Reset_EmptiesEveryTable() {
-        Guid siteId = await InsertSiteAsync("example-com-news-a1b2c3d4");
+        (Guid runId, Guid siteId) = await InsertRunAndSiteAsync();
         await InsertArticlesAsync(siteId, "https://example.com/news/first");
-        await ExecuteAsync("insert into crawl_runs (status) values ('running')");
+        await InsertRunSiteAsync(runId, siteId, "succeeded");
 
         await Fixture.ResetAsync();
 
         Assert.Equal(0, await CountSitesAsync());
         Assert.Equal(0, await ScalarAsync<long>("select count(*) from articles"));
         Assert.Equal(0, await ScalarAsync<long>("select count(*) from crawl_runs"));
+        Assert.Equal(0, await ScalarAsync<long>("select count(*) from crawl_run_sites"));
+    }
+
+    /// <summary>
+    /// <c>crawl_run_sites</c> の行が参照できる実行とサイトを1件ずつ用意する。
+    /// </summary>
+    private async Task<(Guid RunId, Guid SiteId)> InsertRunAndSiteAsync() {
+        await ExecuteAsync("insert into crawl_runs (status) values ('running')");
+
+        return (
+            await ScalarAsync<Guid>("select id from crawl_runs"),
+            await InsertSiteAsync("example-com-news-a1b2c3d4"));
+    }
+
+    private async Task InsertRunSiteAsync(
+        Guid runId,
+        Guid siteId,
+        string outcome,
+        string? failureReason = null) {
+        await ExecuteAsync(
+            """
+            insert into crawl_run_sites (crawl_run_id, site_id, outcome, failure_reason)
+            values ($1, $2, $3, $4)
+            """,
+            runId,
+            siteId,
+            outcome,
+            failureReason);
     }
 
     private async Task<Guid> InsertSiteAsync(

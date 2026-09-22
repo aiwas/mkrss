@@ -60,7 +60,7 @@ public sealed class Crawler {
         if (!await IsAllowedAsync(target.PageUrl, robotsByHost, cancellationToken)) {
             _logger.LogInformation("{Site} は robots.txt により許可されていない。", target.Name);
 
-            return new SiteCrawlResult(target.Id, CrawlOutcome.DisallowedByRobots, 0, null);
+            return new SiteCrawlResult(target.Id, CrawlOutcome.DisallowedByRobots, 0, 0, null);
         }
 
         PageFetchResult page = await _fetcher.FetchAsync(target.PageUrl, cancellationToken);
@@ -71,7 +71,7 @@ public sealed class Crawler {
                 "{Site} の取得に失敗した。{Reason}", target.Name, page.FailureReason);
 
             return new SiteCrawlResult(
-                target.Id, CrawlOutcome.FetchFailed, 0, page.FailureReason);
+                target.Id, CrawlOutcome.FetchFailed, 0, 0, page.FailureReason);
         }
 
         IReadOnlyList<ExtractedArticle> articles;
@@ -90,15 +90,19 @@ public sealed class Crawler {
                 exception, "{Site} の抽出に失敗した。抽出規則を確認すること。", target.Name);
 
             return new SiteCrawlResult(
-                target.Id, CrawlOutcome.ExtractionFailed, 0, exception.Message);
+                target.Id, CrawlOutcome.ExtractionFailed, 0, 0, exception.Message);
         }
 
         int newArticleCount = await _store.SaveNewAsync(target.Id, articles, cancellationToken);
 
         _logger.LogInformation(
-            "{Site} の処理が完了した。新規 {Count} 件。", target.Name, newArticleCount);
+            "{Site} の処理が完了した。抽出 {Extracted} 件、新規 {Count} 件。",
+            target.Name,
+            articles.Count,
+            newArticleCount);
 
-        return new SiteCrawlResult(target.Id, CrawlOutcome.Succeeded, newArticleCount, null);
+        return new SiteCrawlResult(
+            target.Id, CrawlOutcome.Succeeded, articles.Count, newArticleCount, null);
     }
 
     /// <summary>

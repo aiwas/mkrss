@@ -33,8 +33,29 @@ public sealed class CrawlJobTests {
         CrawlReport report = await CreateJob(fetcher, log).ExecuteAsync(CancellationToken.None);
 
         Assert.Equal(1, log.StartedCount);
-        Assert.Equal((CrawlRunOutcome.Succeeded, 3, null), log.Finished);
+        Assert.NotNull(log.Finished);
+        Assert.Equal(CrawlRunOutcome.Succeeded, log.Finished.Value.Outcome);
+        Assert.Equal(3, log.Finished.Value.NewArticleCount);
+        Assert.Null(log.Finished.Value.ErrorMessage);
         Assert.Equal(3, report.NewArticleCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RecordsResultOfEverySite() {
+        // 全体の合計だけでは、どのサイトが機能していないかを後から追えない。
+        FakePageFetcher fetcher = new();
+        fetcher.SetContent(PageUrl, HtmlFixture.Load("news-listing.html"));
+        FakeCrawlRunLog log = new();
+
+        await CreateJob(fetcher, log).ExecuteAsync(CancellationToken.None);
+
+        Assert.NotNull(log.Finished);
+
+        SiteCrawlResult site = Assert.Single(log.Finished.Value.Sites);
+
+        Assert.Equal(Target.Id, site.SiteId);
+        Assert.Equal(CrawlOutcome.Succeeded, site.Outcome);
+        Assert.Equal(3, site.ExtractedArticleCount);
     }
 
     [Fact]
@@ -70,6 +91,9 @@ public sealed class CrawlJobTests {
 
         Assert.NotNull(log.Finished);
         Assert.Equal(CrawlRunOutcome.Failed, log.Finished.Value.Outcome);
+
+        // 巡回対象の読み出し自体に失敗しており、サイトごとの結果は1件も存在しない。
+        Assert.Empty(log.Finished.Value.Sites);
     }
 
     private static CrawlJob CreateJob(FakePageFetcher fetcher, FakeCrawlRunLog log) {

@@ -40,7 +40,11 @@ public sealed class CrawlJob {
 
             // 中断された場合も記録する。ここでトークンを使うと記録自体が中断される。
             await _log.FinishAsync(
-                runId, CrawlRunOutcome.Failed, 0, exception.Message, CancellationToken.None);
+                runId,
+                CrawlRunOutcome.Failed,
+                CrawlReport.Empty,
+                exception.Message,
+                CancellationToken.None);
 
             throw;
         }
@@ -50,7 +54,7 @@ public sealed class CrawlJob {
         await _log.FinishAsync(
             runId,
             failures is null ? CrawlRunOutcome.Succeeded : CrawlRunOutcome.Failed,
-            report.NewArticleCount,
+            report,
             failures,
             cancellationToken);
 

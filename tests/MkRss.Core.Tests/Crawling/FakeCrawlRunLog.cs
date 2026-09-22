@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using MkRss.Core.Crawling;
@@ -15,7 +16,7 @@ internal sealed class FakeCrawlRunLog : ICrawlRunLog {
     public int StartedCount { get; private set; }
 
     /// <summary>終了時に記録された内容。未終了の場合は <see langword="null"/>。</summary>
-    public (CrawlRunOutcome Outcome, int NewArticleCount, string? ErrorMessage)? Finished { get; private set; }
+    public (CrawlRunOutcome Outcome, int NewArticleCount, IReadOnlyList<SiteCrawlResult> Sites, string? ErrorMessage)? Finished { get; private set; }
 
     public Task<Guid> StartAsync(CancellationToken cancellationToken) {
         cancellationToken.ThrowIfCancellationRequested();
@@ -28,14 +29,14 @@ internal sealed class FakeCrawlRunLog : ICrawlRunLog {
     public Task FinishAsync(
         Guid runId,
         CrawlRunOutcome outcome,
-        int newArticleCount,
+        CrawlReport report,
         string? errorMessage,
         CancellationToken cancellationToken) {
         if (runId != RunId) {
             throw new InvalidOperationException($"開始していない実行の終了が記録された: {runId}");
         }
 
-        Finished = (outcome, newArticleCount, errorMessage);
+        Finished = (outcome, report.NewArticleCount, report.Sites, errorMessage);
 
         return Task.CompletedTask;
     }

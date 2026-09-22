@@ -97,7 +97,8 @@ public sealed class PostgresFixture : IAsyncLifetime {
     /// スキーマを作り直さないのは、マイグレーションの再適用がテストごとの待ち時間になるため。
     /// </remarks>
     public async Task ResetAsync() {
-        await ExecuteAsync("truncate table sites, articles, crawl_runs restart identity cascade;");
+        await ExecuteAsync(
+            "truncate table sites, articles, crawl_runs, crawl_run_sites restart identity cascade;");
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,6 +17,27 @@ public enum CrawlRunOutcome {
 }
 
 /// <summary>
+/// クロール実行における、サイト1件分の記録。
+/// </summary>
+/// <param name="SiteId">サイトの識別子。</param>
+/// <param name="SiteName">サイト名。識別子だけでは対象が分からないため併せて返す。</param>
+/// <param name="Outcome">
+/// 結末。<see cref="CrawlOutcome"/> に対応する
+/// <c>succeeded</c> / <c>fetch_failed</c> / <c>extraction_failed</c> /
+/// <c>disallowed_by_robots</c> のいずれか。
+/// </param>
+/// <param name="ExtractedArticleCount">ページから抽出できた記事の件数。</param>
+/// <param name="NewArticleCount">新しく保存された記事の件数。</param>
+/// <param name="FailureReason">失敗した場合の理由。それ以外は <see langword="null"/>。</param>
+public sealed record CrawlRunSiteStatus(
+    Guid SiteId,
+    string SiteName,
+    string Outcome,
+    int ExtractedArticleCount,
+    int NewArticleCount,
+    string? FailureReason);
+
+/// <summary>
 /// クロール実行の記録。
 /// </summary>
 /// <param name="StartedAt">開始日時。</param>
@@ -23,12 +45,16 @@ public enum CrawlRunOutcome {
 /// <param name="Status">状態。<c>running</c> / <c>succeeded</c> / <c>failed</c> のいずれか。</param>
 /// <param name="NewArticleCount">新しく保存された記事の件数。</param>
 /// <param name="ErrorMessage">失敗の内容。それ以外は <see langword="null"/>。</param>
+/// <param name="Sites">
+/// サイトごとの内訳。実行中、またはサイトを1件も処理できなかった場合は空になる。
+/// </param>
 public sealed record CrawlRunStatus(
     DateTimeOffset StartedAt,
     DateTimeOffset? FinishedAt,
     string Status,
     int NewArticleCount,
-    string? ErrorMessage);
+    string? ErrorMessage,
+    IReadOnlyList<CrawlRunSiteStatus> Sites);
 
 /// <summary>
 /// クロール実行の記録を残す。
@@ -46,10 +72,22 @@ public interface ICrawlRunLog {
     /// <summary>
     /// 実行の終了を記録する。
     /// </summary>
+    /// <param name="runId"><see cref="StartAsync"/> が返した識別子。</param>
+    /// <param name="outcome">実行全体の結末。</param>
+    /// <param name="report">
+    /// サイトごとの結果。実行が異常終了してサイトを1件も処理できなかった場合は
+    /// <see cref="CrawlReport.Empty"/> を渡す。
+    /// </param>
+    /// <param name="errorMessage">失敗の内容。それ以外は <see langword="null"/>。</param>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <remarks>
+    /// 全体の合計だけでは、どのサイトが機能していないかを後から追えない。
+    /// 合計件数は <paramref name="report"/> から導けるため、別の引数では受け取らない。
+    /// </remarks>
     Task FinishAsync(
         Guid runId,
         CrawlRunOutcome outcome,
-        int newArticleCount,
+        CrawlReport report,
         string? errorMessage,
         CancellationToken cancellationToken);
 

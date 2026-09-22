@@ -48,6 +48,23 @@ public sealed class CrawlerTests {
     }
 
     [Fact]
+    public async Task RunAsync_Succeeded_RecordsExtractedCountSeparatelyFromNewCount() {
+        // 抽出できた件数と新規保存された件数を分けて持つ。
+        // 新規0件が「更新が無かった」のか「セレクタが機能しておらず抽出0件」なのかを
+        // 区別できないと、そのサイトだけ止まっていることに気づけない。
+        FakePageFetcher fetcher = new();
+        fetcher.SetContent(PageUrl, HtmlFixture.Load("news-listing.html"));
+        FakeArticleStore store = new(newArticleCount: 1);
+
+        CrawlReport report = await CreateCrawler(fetcher, store, Target).RunAsync(CancellationToken.None);
+
+        SiteCrawlResult site = Assert.Single(report.Sites);
+
+        Assert.Equal(3, site.ExtractedArticleCount);
+        Assert.Equal(1, site.NewArticleCount);
+    }
+
+    [Fact]
     public async Task RunAsync_DisallowedByRobots_DoesNotFetchPage() {
         FakePageFetcher fetcher = new();
         fetcher.SetContent(RobotsUrl, "User-agent: *\nDisallow: /news/\n");
@@ -99,6 +116,7 @@ public sealed class CrawlerTests {
 
         Assert.Equal(CrawlOutcome.FetchFailed, report.Sites[0].Outcome);
         Assert.Equal("503 Service Unavailable", report.Sites[0].FailureReason);
+        Assert.Equal(0, report.Sites[0].ExtractedArticleCount);
         Assert.Equal(CrawlOutcome.Succeeded, report.Sites[1].Outcome);
         Assert.Equal(3, report.NewArticleCount);
         Assert.True(report.HasFailure);
@@ -124,6 +142,7 @@ public sealed class CrawlerTests {
 
         Assert.Equal(CrawlOutcome.ExtractionFailed, report.Sites[0].Outcome);
         Assert.NotNull(report.Sites[0].FailureReason);
+        Assert.Equal(0, report.Sites[0].ExtractedArticleCount);
         Assert.Equal(CrawlOutcome.Succeeded, report.Sites[1].Outcome);
         Assert.Equal(3, report.NewArticleCount);
     }

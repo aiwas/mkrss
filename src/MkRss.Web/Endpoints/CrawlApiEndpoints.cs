@@ -48,6 +48,8 @@ public static class CrawlApiEndpoints {
     /// <remarks>
     /// CRONは <c>202 Accepted</c> を受け取るだけでクロールの成否を知れない。
     /// exit code による失敗検知の代替としてこの記録を参照する。
+    /// 全体の合計に加えてサイトごとの内訳も返す。合計だけでは、
+    /// 特定のサイトから記事を拾えていない状態を検知できないため。
     /// </remarks>
     private static async Task<IResult> GetStatusAsync(
         ICrawlRunLog log,
