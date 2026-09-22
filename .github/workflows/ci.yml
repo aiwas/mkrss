@@ -9,10 +9,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # SDKのバージョンは global.json を正とする。ローカルとCIで食い違わせない。
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Dockerfile は csproj を1つずつ明示的にCOPYしているため、
       # プロジェクトを追加すると restore が壊れる。デプロイ前にここで気づく。
