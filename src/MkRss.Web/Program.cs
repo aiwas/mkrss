@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
@@ -21,6 +22,12 @@ public class Program {
     private const string ConnectionStringKey = "Supabase:ConnectionStrings";
 
     public static async Task Main(string[] args) {
+        // Shift_JIS や EUC-JP を申告するページを復号できるようにする。
+        // .NET が既定で解決できるのは UTF 系と ASCII のみで、日本語のサイトを扱う前提では足りない。
+        // AngleSharp もアセンブリの読み込み時に同じ登録を行うが、その副作用に依存すると
+        // 「最初の抽出より前に取得したページだけ失敗する」という順序依存の挙動になる。
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
         WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
         MkRssOptions options = builder.Configuration

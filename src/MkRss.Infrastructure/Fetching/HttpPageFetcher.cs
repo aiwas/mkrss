@@ -66,5 +66,14 @@ public sealed class HttpPageFetcher : IPageFetcher {
 
             return PageFetchResult.Failure(exception.Message, fetchedAt);
         }
+        // Content-Type が申告した charset を解決できない場合、ReadAsStringAsync は
+        // UTF-8 へ倒さずこの例外を投げる。捕捉しないと、1サイトの申告内容で
+        // クロール全体が止まる(決定事項10)。
+        catch (InvalidOperationException exception) {
+            _logger.LogWarning(
+                exception, "ページの文字コードを解釈できませんでした。{Url}", url);
+
+            return PageFetchResult.Failure($"文字コードを解釈できない: {exception.Message}", fetchedAt);
+        }
     }
 }

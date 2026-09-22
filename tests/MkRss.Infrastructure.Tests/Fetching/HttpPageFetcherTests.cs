@@ -93,6 +93,8 @@ public sealed class HttpPageFetcherTests {
     [Fact]
     public async Task FetchAsync_ShiftJisCharsetInContentType_IsDecoded() {
         // 日本語サイトでは Shift_JIS が現役で使われている。
+        // 登録はプロセス全体に適用されるため、ここで呼んでも本番の動作を保証したことにはならない。
+        // 本番は MkRss.Web.Program の合成ルートで登録している。
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         Encoding shiftJis = Encoding.GetEncoding("shift_jis");
 
@@ -108,6 +110,27 @@ public sealed class HttpPageFetcherTests {
         PageFetchResult actual = await fetcher.FetchAsync(PageUrl, CancellationToken.None);
 
         Assert.Equal("<html><body>日本語</body></html>", actual.Html);
+    }
+
+    [Fact]
+    public async Task FetchAsync_UnresolvableCharset_ReturnsFailureInsteadOfThrowing() {
+        // 解釈できない charset に対して ReadAsStringAsync は UTF-8 へ倒さず例外を投げる。
+        // これを捕捉しないと、1サイトの申告内容でクロール全体が止まる(決定事項10)。
+        HttpResponseMessage response = new(HttpStatusCode.OK) {
+            Content = new ByteArrayContent([0x93, 0xfa, 0x96, 0x7b]),
+        };
+        response.Content.Headers.ContentType = new MediaTypeHeaderValue("text/html") {
+            CharSet = "x-unknown-encoding",
+        };
+
+        HttpPageFetcher fetcher = CreateFetcher(new StubHttpMessageHandler(response));
+
+        PageFetchResult actual = await fetcher.FetchAsync(PageUrl, CancellationToken.None);
+
+        Assert.False(actual.IsSuccess);
+        Assert.Null(actual.Html);
+        Assert.Contains("文字コード", actual.FailureReason);
+        Assert.Equal(Now, actual.FetchedAt);
     }
 
     [Fact]
