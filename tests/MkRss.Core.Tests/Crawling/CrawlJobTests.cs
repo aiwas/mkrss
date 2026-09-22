@@ -81,7 +81,7 @@ public sealed class CrawlJobTests {
                 new ThrowingCrawlTargetSource(),
                 new FakePageFetcher(),
                 new FakeArticleStore(),
-                new CrawlerOptions("mkrss/1.0"),
+                new CrawlerOptions("mkrss"),
                 NullLogger<Crawler>.Instance),
             log,
             NullLogger<CrawlJob>.Instance);
@@ -102,7 +102,7 @@ public sealed class CrawlJobTests {
                 new FakeCrawlTargetSource(Target),
                 fetcher,
                 new FakeArticleStore(),
-                new CrawlerOptions("mkrss/1.0"),
+                new CrawlerOptions("mkrss"),
                 NullLogger<Crawler>.Instance),
             log,
             NullLogger<CrawlJob>.Instance);

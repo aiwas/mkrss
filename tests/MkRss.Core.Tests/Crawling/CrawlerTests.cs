@@ -12,7 +12,8 @@ using Xunit;
 namespace MkRss.Core.Tests.Crawling;
 
 public sealed class CrawlerTests {
-    private const string UserAgent = "mkrss/1.0";
+    /// <summary>robots.txt の判定に使う product token。送信する User-Agent とは別の値。</summary>
+    private const string ProductToken = "mkrss";
 
     private static readonly Uri PageUrl = new("https://example.com/news/");
 
@@ -130,6 +131,31 @@ public sealed class CrawlerTests {
     }
 
     [Fact]
+    public async Task RunAsync_SameHostWithDifferentScheme_UsesItsOwnRobots() {
+        // RFC 9309 は robots.txt の適用範囲を origin(スキーム + ホスト + ポート)と定めている。
+        // ホストだけでキャッシュすると、http と https で異なる内容を取り違える。
+        CrawlTarget insecure = Target with {
+            Id = new Guid("55555555-5555-5555-5555-555555555555"),
+            Name = "http側の一覧",
+            PageUrl = new Uri("http://example.com/news/"),
+        };
+
+        FakePageFetcher fetcher = new();
+        fetcher.SetContent(RobotsUrl, "User-agent: *\nDisallow: /private\n");
+        fetcher.SetContent(
+            new Uri("http://example.com/robots.txt"), "User-agent: *\nDisallow: /news/\n");
+        fetcher.SetContent(PageUrl, HtmlFixture.Load("news-listing.html"));
+        fetcher.SetContent(insecure.PageUrl, HtmlFixture.Load("news-listing.html"));
+        FakeArticleStore store = new();
+
+        CrawlReport report = await CreateCrawler(fetcher, store, Target, insecure)
+            .RunAsync(CancellationToken.None);
+
+        Assert.Equal(CrawlOutcome.Succeeded, report.Sites[0].Outcome);
+        Assert.Equal(CrawlOutcome.DisallowedByRobots, report.Sites[1].Outcome);
+    }
+
+    [Fact]
     public async Task RunAsync_FetchFailure_ContinuesWithRemainingTargets() {
         // 1サイトの障害で全サイトのフィード更新が止まらないようにする。
         CrawlTarget failing = Target with {
@@ -201,7 +227,7 @@ public sealed class CrawlerTests {
             new FakeCrawlTargetSource(targets),
             fetcher,
             store,
-            new CrawlerOptions(UserAgent),
+            new CrawlerOptions(ProductToken),
             NullLogger<Crawler>.Instance);
     }
 }

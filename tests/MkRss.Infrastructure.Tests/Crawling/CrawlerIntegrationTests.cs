@@ -82,7 +82,7 @@ public sealed class CrawlerIntegrationTests(PostgresFixture fixture) : DatabaseT
             new NpgsqlCrawlTargetSource(Fixture.DataSource),
             new StubPageFetcher(new Uri("https://example.com/news/"), Html),
             new NpgsqlArticleStore(Fixture.DataSource),
-            new CrawlerOptions("mkrss/1.0"),
+            new CrawlerOptions("mkrss"),
             NullLogger<Crawler>.Instance);
     }
 

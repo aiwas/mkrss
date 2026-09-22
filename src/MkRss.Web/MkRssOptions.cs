@@ -6,7 +6,14 @@ namespace MkRss.Web;
 /// 設定ファイルおよび環境変数から読み込む動作設定。
 /// </summary>
 /// <param name="UserAgent">
-/// ページ取得時に送信し、robots.txt の判定にも使う名前。両者は一致している必要がある。
+/// ページ取得時に <c>User-Agent</c> ヘッダとして送信する文字列。
+/// 巡回先の管理者が連絡できるよう、連絡先のURLを含めてよい。
+/// </param>
+/// <param name="RobotsProductToken">
+/// robots.txt の User-agent グループを選ぶ際に使う product token(例 : <c>mkrss</c>)。
+/// <paramref name="UserAgent"/> とは役割が異なるため別の設定にしている。
+/// RFC 9309 は product token を英字・アンダースコア・ハイフンのみと定めており、
+/// 記号を含む完全な User-Agent 文字列はグループ名として成立しない。
 /// </param>
 /// <param name="FetchTimeout">1ページあたりの取得を諦めるまでの時間。</param>
 /// <param name="FeedLimit">1フィードに含める記事の最大件数。</param>
@@ -22,6 +29,7 @@ namespace MkRss.Web;
 /// </param>
 public sealed record MkRssOptions(
     string UserAgent,
+    string RobotsProductToken,
     TimeSpan FetchTimeout,
     int FeedLimit,
     string ApiToken,

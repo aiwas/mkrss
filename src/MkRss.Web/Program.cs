@@ -59,7 +59,8 @@ public class Program {
         builder.Services.AddScoped<IArticleStore, NpgsqlArticleStore>();
         builder.Services.AddScoped<ICrawlRunLog, NpgsqlCrawlRunLog>();
         builder.Services.AddScoped<IFeedSource, NpgsqlFeedSource>();
-        builder.Services.AddSingleton(new CrawlerOptions(options.UserAgent));
+        // robots.txt の判定には product token を渡す。送信する User-Agent とは別の値。
+        builder.Services.AddSingleton(new CrawlerOptions(options.RobotsProductToken));
         builder.Services.AddScoped<Crawler>();
         builder.Services.AddScoped<CrawlJob>();
 

@@ -68,6 +68,21 @@ public sealed class RobotsTxtTests {
     }
 
     [Fact]
+    public void IsAllowed_FullUserAgentHeader_DoesNotMatchProductTokenGroup() {
+        // 呼び出し側は product token を渡す契約になっている。
+        // RFC 9309 は product token を英字・アンダースコア・ハイフンのみと定めており、
+        // 記号を含む完全な User-Agent 文字列はグループ名として成立しない。
+        // 渡し間違えると名指しの拒否に一致せず、そのサイトを巡回してしまう。
+        RobotsTxt robots = RobotsTxt.Parse("""
+            User-agent: mkrss
+            Disallow: /
+            """);
+
+        Assert.False(robots.IsAllowed("/news/", "mkrss"));
+        Assert.True(robots.IsAllowed("/news/", "mkrss/1.0 (+https://example.net/about)"));
+    }
+
+    [Fact]
     public void IsAllowed_UserAgentMatching_IsCaseInsensitive() {
         RobotsTxt robots = RobotsTxt.Parse(GroupedRobots);
 

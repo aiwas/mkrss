@@ -78,10 +78,14 @@ public sealed class RobotsTxt {
     /// 対象URLのパス部分。RFC 9309 はクエリを含めて比較すると定めているため、
     /// 呼び出し側は <see cref="Uri.PathAndQuery"/> を渡す。
     /// </param>
-    /// <param name="userAgent">判定に使う User-Agent。</param>
-    public bool IsAllowed(string path, string userAgent) {
+    /// <param name="productToken">
+    /// 判定に使う product token(例 : <c>mkrss</c>)。グループ名と完全一致で比較する。
+    /// RFC 9309 が product token を英字・アンダースコア・ハイフンのみと定めているため、
+    /// 記号を含む完全な User-Agent ヘッダを渡してはならない。名指しのグループに一致しなくなる。
+    /// </param>
+    public bool IsAllowed(string path, string productToken) {
         // 自分宛てのグループがあればそれだけを見る。無ければ `*` のグループを見る。
-        if (!_groups.TryGetValue(userAgent, out List<Rule>? rules)
+        if (!_groups.TryGetValue(productToken, out List<Rule>? rules)
             && !_groups.TryGetValue(WildcardUserAgent, out rules)) {
             return true;
         }

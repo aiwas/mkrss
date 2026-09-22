@@ -45,10 +45,10 @@ public sealed class Crawler {
         _logger.LogInformation("クロールを開始する。対象 {Count} 件。", targets.Count);
 
         List<SiteCrawlResult> results = [];
-        Dictionary<string, RobotsTxt?> robotsByHost = [];
+        Dictionary<string, RobotsTxt?> robotsByOrigin = [];
 
         foreach (CrawlTarget target in targets) {
-            results.Add(await CrawlAsync(target, robotsByHost, cancellationToken));
+            results.Add(await CrawlAsync(target, robotsByOrigin, cancellationToken));
         }
 
         return new CrawlReport(results);
@@ -56,9 +56,9 @@ public sealed class Crawler {
 
     private async Task<SiteCrawlResult> CrawlAsync(
         CrawlTarget target,
-        Dictionary<string, RobotsTxt?> robotsByHost,
+        Dictionary<string, RobotsTxt?> robotsByOrigin,
         CancellationToken cancellationToken) {
-        if (!await IsAllowedAsync(target.PageUrl, robotsByHost, cancellationToken)) {
+        if (!await IsAllowedAsync(target.PageUrl, robotsByOrigin, cancellationToken)) {
             _logger.LogInformation("{Site} は robots.txt により許可されていない。", target.Name);
 
             return new SiteCrawlResult(target.Id, CrawlOutcome.DisallowedByRobots, 0, 0, null);
@@ -116,16 +116,20 @@ public sealed class Crawler {
     /// </remarks>
     private async Task<bool> IsAllowedAsync(
         Uri pageUrl,
-        Dictionary<string, RobotsTxt?> robotsByHost,
+        Dictionary<string, RobotsTxt?> robotsByOrigin,
         CancellationToken cancellationToken) {
-        // 1回のクロール中は同じホストのrobots.txtを取得し直さない。
+        // 1回のクロール中は同じ origin のrobots.txtを取得し直さない。
         // 同じサイトの複数の一覧ページを別々の巡回対象として登録できるため。
-        if (!robotsByHost.TryGetValue(pageUrl.Authority, out RobotsTxt? robots)) {
+        // RFC 9309 は robots.txt の適用範囲を origin(スキーム + ホスト + ポート)と定めている。
+        // Uri.Authority はスキームを含まないため、キーには使えない。
+        string origin = pageUrl.GetLeftPart(UriPartial.Authority);
+
+        if (!robotsByOrigin.TryGetValue(origin, out RobotsTxt? robots)) {
             robots = await FetchRobotsAsync(pageUrl, cancellationToken);
-            robotsByHost[pageUrl.Authority] = robots;
+            robotsByOrigin[origin] = robots;
         }
 
-        return robots is null || robots.IsAllowed(pageUrl.PathAndQuery, _options.UserAgent);
+        return robots is null || robots.IsAllowed(pageUrl.PathAndQuery, _options.ProductToken);
     }
 
     /// <summary>
