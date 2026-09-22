@@ -1,0 +1,208 @@
+@page "/admin/sites/new"
+@page "/admin/sites/{Id:guid}"
+@rendermode InteractiveServer
+@inject ISiteRepository Sites
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-4">
+    @(Id is null ? "サイトを登録する" : "サイトを編集する")
+</MudText>
+
+@if (_form is null) {
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+} else {
+    <MudCard Elevation="1" Class="mb-4">
+        <MudCardContent>
+            <MudStack Spacing="4">
+                <MudTextField T="string"
+                              @bind-Value="_form.Name"
+                              Label="サイト名"
+                              Error="@HasError(SiteField.Name)"
+                              ErrorText="@ErrorText(SiteField.Name)" />
+
+                <MudTextField T="string"
+                              @bind-Value="_form.PageUrl"
+                              Label="一覧ページのURL"
+                              Error="@HasError(SiteField.PageUrl)"
+                              ErrorText="@ErrorText(SiteField.PageUrl)" />
+
+                <MudStack Row="true" AlignItems="AlignItems.Baseline" Spacing="2">
+                    <MudTextField T="string"
+                                  @bind-Value="_form.Slug"
+                                  Label="slug"
+                                  HelperText="フィードの公開URL /feeds/{slug}.xml に使う。"
+                                  Error="@HasError(SiteField.Slug)"
+                                  ErrorText="@ErrorText(SiteField.Slug)" />
+                    <MudButton Variant="Variant.Outlined" OnClick="GenerateSlug">
+                        URLから作る
+                    </MudButton>
+                </MudStack>
+
+                <MudSwitch T="bool"
+                           @bind-Value="_form.IsEnabled"
+                           Color="Color.Primary"
+                           Label="巡回の対象にする" />
+            </MudStack>
+        </MudCardContent>
+    </MudCard>
+
+    <MudCard Elevation="1">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6" HtmlTag="h2">抽出規則</MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudStack Spacing="4">
+                <MudTextField T="string"
+                              @bind-Value="_form.ItemSelector"
+                              Label="記事1件を表す要素"
+                              Error="@HasError(SiteField.ItemSelector)"
+                              ErrorText="@ErrorText(SiteField.ItemSelector)" />
+
+                <MudStack Row="true" AlignItems="AlignItems.Baseline" Spacing="2">
+                    <MudTextField T="string"
+                                  @bind-Value="_form.TitleSelector"
+                                  Label="タイトルのセレクタ"
+                                  Error="@HasError(SiteField.TitleSelector)"
+                                  ErrorText="@ErrorText(SiteField.TitleSelector)" />
+                    <MudTextField T="string"
+                                  @bind-Value="_form.TitleAttribute"
+                                  Label="属性名"
+                                  HelperText="空なら要素のテキスト" />
+                </MudStack>
+
+                <MudStack Row="true" AlignItems="AlignItems.Baseline" Spacing="2">
+                    <MudTextField T="string"
+                                  @bind-Value="_form.LinkSelector"
+                                  Label="記事URLのセレクタ"
+                                  Error="@HasError(SiteField.LinkSelector)"
+                                  ErrorText="@ErrorText(SiteField.LinkSelector)" />
+                    <MudTextField T="string" @bind-Value="_form.LinkAttribute" Label="属性名" />
+                </MudStack>
+
+                <MudCheckBox T="bool"
+                             @bind-Value="_form.ExtractsDate"
+                             Color="Color.Primary"
+                             Label="日付を抽出する" />
+
+                @if (_form.ExtractsDate) {
+                    <MudStack Row="true" AlignItems="AlignItems.Baseline" Spacing="2">
+                        <MudTextField T="string"
+                                      @bind-Value="_form.DateSelector"
+                                      Label="日付のセレクタ"
+                                      Error="@HasError(SiteField.DateSelector)"
+                                      ErrorText="@ErrorText(SiteField.DateSelector)" />
+                        <MudTextField T="string"
+                                      @bind-Value="_form.DateAttribute"
+                                      Label="属性名"
+                                      HelperText="空なら要素のテキスト" />
+                        <MudNumericField T="int"
+                                         @bind-Value="_form.DateOffsetHours"
+                                         Label="オフセット (時間)"
+                                         HelperText="日本のサイトなら 9" />
+                    </MudStack>
+                } else {
+                    <MudAlert Severity="Severity.Info" Dense="true">
+                        取得した日時を記事の日付として使う。
+                    </MudAlert>
+                }
+
+                <MudText Typo="Typo.caption">
+                    セレクタを空にすると、記事1件を表す要素そのものを対象にする。
+                </MudText>
+            </MudStack>
+        </MudCardContent>
+    </MudCard>
+
+    <MudStack Row="true" Spacing="2" Class="mt-4">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync">
+            保存する
+        </MudButton>
+        <MudButton Variant="Variant.Text" Href="/admin">やめる</MudButton>
+    </MudStack>
+}
+
+@code {
+    /// <summary>編集するサイトの識別子。新規登録の場合は <see langword="null"/>。</summary>
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    private SiteForm? _form;
+    private IReadOnlyList<SiteValidationError> _errors = [];
+
+    protected override async Task OnParametersSetAsync() {
+        if (_form is not null) {
+            return;
+        }
+
+        if (Id is null) {
+            _form = new SiteForm();
+
+            return;
+        }
+
+        SiteDefinition? site = await Sites.FindAsync(Id.Value, CancellationToken.None);
+
+        if (site is null) {
+            Navigation.NavigateTo("/admin");
+
+            return;
+        }
+
+        _form = SiteForm.From(site.Draft);
+    }
+
+    /// <summary>
+    /// 一覧ページのURLから slug の初期値を作る。
+    /// </summary>
+    private void GenerateSlug() {
+        if (_form is null || !Uri.TryCreate(_form.PageUrl, UriKind.Absolute, out Uri? pageUrl)) {
+            Snackbar.Add("一覧ページのURLを入力してください。", Severity.Warning);
+
+            return;
+        }
+
+        _form.Slug = SlugGenerator.Generate(pageUrl, SlugGenerator.NewSuffix());
+    }
+
+    private async Task SaveAsync() {
+        if (_form is null) {
+            return;
+        }
+
+        SiteDraft draft = _form.ToDraft();
+
+        _errors = SiteValidator.Validate(draft);
+
+        if (_errors.Count > 0) {
+            Snackbar.Add("入力に誤りがあります。", Severity.Error);
+
+            return;
+        }
+
+        SiteSaveResult result = Id is null
+            ? await Sites.AddAsync(draft, CancellationToken.None)
+            : await Sites.UpdateAsync(Id.Value, draft, CancellationToken.None);
+
+        if (result.IsSlugTaken) {
+            // 重複は検証では判定できない。保存を試みて初めて分かる。
+            _errors = [new SiteValidationError(SiteField.Slug, "この slug は既に使われています。")];
+
+            Snackbar.Add("この slug は既に使われています。", Severity.Error);
+
+            return;
+        }
+
+        Navigation.NavigateTo("/admin");
+    }
+
+    private bool HasError(SiteField field) {
+        return _errors.Any(item => item.Field == field);
+    }
+
+    private string? ErrorText(SiteField field) {
+        return _errors.FirstOrDefault(item => item.Field == field)?.Message;
+    }
+}

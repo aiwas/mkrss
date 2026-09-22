@@ -7,10 +7,13 @@ using Microsoft.Extensions.DependencyInjection;
 using MkRss.Core.Crawling;
 using MkRss.Core.Feeds;
 using MkRss.Core.Fetching;
+using MkRss.Core.Sites;
 using MkRss.Infrastructure.Fetching;
 using MkRss.Infrastructure.Hosting;
 using MkRss.Infrastructure.Persistence;
+using MkRss.Web.Components;
 using MkRss.Web.Endpoints;
+using MudBlazor.Services;
 using Npgsql;
 
 namespace MkRss.Web;
@@ -56,6 +59,13 @@ public class Program {
             new PageFetcherOptions(options.UserAgent, options.FetchTimeout, options.MaxPageBytes));
         builder.Services.AddHttpClient<IPageFetcher, HttpPageFetcher>();
 
+        // Blazor Server の管理UI。APIとフィード配信と同じアプリに同居させる。
+        // Blazor では Scoped の寿命がリクエストごとではなくサーキット単位になる。
+        // ここに登録する実装は接続を保持しない、無状態のものに限ること。
+        builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+        builder.Services.AddMudServices();
+
+        builder.Services.AddScoped<ISiteRepository, NpgsqlSiteRepository>();
         builder.Services.AddScoped<ICrawlTargetSource, NpgsqlCrawlTargetSource>();
         builder.Services.AddScoped<IArticleStore, NpgsqlArticleStore>();
         builder.Services.AddScoped<ICrawlRunLog, NpgsqlCrawlRunLog>();
@@ -70,8 +80,12 @@ public class Program {
 
         WebApplication app = builder.Build();
 
+        app.MapStaticAssets();
+        app.UseAntiforgery();
+
         app.MapCrawlApi();
         app.MapFeeds();
+        app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
         await app.RunAsync();
     }

@@ -5,6 +5,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="MudBlazor" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\MkRss.Core\MkRss.Core.csproj" />
     <ProjectReference Include="..\MkRss.Infrastructure\MkRss.Infrastructure.csproj" />
   </ItemGroup>

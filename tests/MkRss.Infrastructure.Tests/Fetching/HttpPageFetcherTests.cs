@@ -25,11 +25,6 @@ public sealed class HttpPageFetcherTests {
         Timeout: TimeSpan.FromSeconds(30),
         MaxPageBytes: MaxPageBytes);
 
-    /// <summary>常に同じ時刻を返す <see cref="TimeProvider"/>。</summary>
-    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider {
-        public override DateTimeOffset GetUtcNow() => now;
-    }
-
     private static HttpPageFetcher CreateFetcher(
         StubHttpMessageHandler handler,
         PageFetcherOptions? options = null) {

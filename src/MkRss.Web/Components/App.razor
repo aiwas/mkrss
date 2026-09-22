@@ -1,0 +1,21 @@
+@* 管理UIのルート文書。フィード配信とAPIは Minimal API 側が担当する。 *@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    @* MudBlazor の静的資産。RCLの資産として _content/ 配下から配信される。
+       Robotoは読み込まない。テーマ側でシステムフォントを指定している。 *@
+    <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    <title>mkrss</title>
+    <HeadOutlet />
+</head>
+<body>
+    <Routes />
+    @* blazor.web.js を先に読む。MudBlazor の部品はJS相互運用を前提にしているため、
+       順序を入れ替えると起動時の相互運用が成立しないことがある。 *@
+    <script src="_framework/blazor.web.js"></script>
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+</body>
+</html>

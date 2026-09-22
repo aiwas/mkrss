@@ -1,0 +1,58 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider @ref="_themeProvider"
+                  @bind-IsDarkMode="_isDarkMode"
+                  Theme="Theme"
+                  ObserveSystemDarkModeChange="true" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudLink Href="/admin" Color="Color.Inherit" Underline="Underline.None" Typo="Typo.h6">mkrss</MudLink>
+    </MudAppBar>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="my-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    /// <summary>
+    /// 画面全体のテーマ。
+    /// </summary>
+    /// <remarks>
+    /// MudBlazor の既定のタイポグラフィは Roboto を前提にしているが、
+    /// 読み込むと管理画面を開くたびに外部へリクエストが飛ぶ。
+    /// ここでシステムのフォントを指定し、Google Fonts を参照しない。
+    /// </remarks>
+    private static readonly MudTheme Theme = new() {
+        PaletteLight = new PaletteLight() {
+            Primary = "#eb7057",
+            AppbarBackground = "#eb7057",
+        },
+        Typography = new Typography {
+            Default = new DefaultTypography {
+                FontFamily = ["system-ui", "sans-serif"],
+            },
+        },
+    };
+
+    private MudThemeProvider? _themeProvider;
+    private bool _isDarkMode;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (!firstRender || _themeProvider is null) {
+            return;
+        }
+
+        // OSの設定に合わせる。JS相互運用を伴うため、事前レンダリングでは実行されない
+        // OnAfterRenderAsync で行う。
+        _isDarkMode = await _themeProvider.GetSystemDarkModeAsync();
+
+        StateHasChanged();
+    }
+}
