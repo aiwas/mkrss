@@ -19,7 +19,7 @@ namespace MkRss.Core.Fetching;
 /// <remarks>
 /// 復号せずバイト列のまま返す。HTTPヘッダには文字コードを書かず、
 /// HTML内の <c>&lt;meta charset&gt;</c> でのみ宣言するページがあるため、
-/// 取得の時点で復号すると、その宣言を読む機会が失われる(未決定事項8)。
+/// 取得の時点で復号すると、その宣言を読む機会が失われる。
 /// </remarks>
 public sealed record PageFetchResult(
     byte[]? Content,

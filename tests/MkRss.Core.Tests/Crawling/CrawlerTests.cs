@@ -182,7 +182,7 @@ public sealed class CrawlerTests {
 
     [Fact]
     public async Task RunAsync_ExtractionThrows_ContinuesWithRemainingTargets() {
-        // セレクタの構文はDB登録時に検証しない(決定事項1)ため、壊れた規則が登録されうる。
+        // セレクタの構文はDB登録時に検証していないため、壊れた規則が登録されうる。
         CrawlTarget broken = Target with {
             Id = new Guid("44444444-4444-4444-4444-444444444444"),
             Name = "規則が壊れたサイト",

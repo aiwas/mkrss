@@ -13,7 +13,7 @@ create table crawl_run_sites (
 
   -- ページから抽出できた件数。既に保存済みのものも含む。
   -- 新規0件が「更新が無かった」のか「セレクタが機能していない」のかは、
-  -- この列との差でしか区別できない (決定事項1によりセレクタの構文を検証しないため)。
+  -- この列との差でしか区別できない (セレクタの構文をDB登録時に検証していないため)。
   extracted_article_count  integer not null default 0,
   new_article_count        integer not null default 0,
 
