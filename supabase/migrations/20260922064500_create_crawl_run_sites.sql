@@ -1,7 +1,6 @@
 -- クロール実行における、サイト1件ごとの結果。
 -- crawl_runs は全体の合計しか持たないため、これだけでは
 -- 「そのサイトだけ記事を拾えていない」状態を検知できない。
--- 設計の根拠は docs/db-schema-draft.md を参照。
 
 create table crawl_run_sites (
   id            uuid not null primary key default gen_random_uuid(),

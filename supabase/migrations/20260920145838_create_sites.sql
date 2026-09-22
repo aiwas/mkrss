@@ -1,5 +1,4 @@
 -- 巡回対象の一覧ページと、そこから記事情報を抽出するための規則。
--- 設計の根拠は docs/db-schema-draft.md を参照。
 
 create table sites (
   id          uuid        primary key default gen_random_uuid(),

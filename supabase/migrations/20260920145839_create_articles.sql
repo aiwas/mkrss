@@ -1,5 +1,4 @@
 -- 抽出済みの記事。フィードの中身になる。
--- 設計の根拠は docs/db-schema-draft.md を参照。
 
 create table articles (
   id              uuid        primary key default gen_random_uuid(),
