@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,6 +12,9 @@ namespace MkRss.Infrastructure.Fetching;
 /// <see cref="HttpClient"/> でページを取得する <see cref="IPageFetcher"/>。
 /// </summary>
 public sealed class HttpPageFetcher : IPageFetcher {
+    /// <summary>1回の読み込みで受け取るバイト数。</summary>
+    private const int BufferSize = 8192;
+
     private readonly HttpClient _httpClient;
     private readonly PageFetcherOptions _options;
     private readonly TimeProvider _timeProvider;
@@ -39,8 +43,11 @@ public sealed class HttpPageFetcher : IPageFetcher {
             using HttpRequestMessage request = new(HttpMethod.Get, url);
             request.Headers.UserAgent.ParseAdd(_options.UserAgent);
 
-            using HttpResponseMessage response =
-                await _httpClient.SendAsync(request, linked.Token).ConfigureAwait(false);
+            // ResponseHeadersRead を指定する。既定では本文を全て読み終えてから戻るため、
+            // 上限を設けても、そこに到達する前にメモリを消費してしまう。
+            using HttpResponseMessage response = await _httpClient
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token)
+                .ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode) {
                 string reason = $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}".TrimEnd();
@@ -49,11 +56,20 @@ public sealed class HttpPageFetcher : IPageFetcher {
                 return PageFetchResult.Failure(reason, fetchedAt);
             }
 
+            // 申告の時点で分かる場合は、本文を読まずに諦める。
+            if (response.Content.Headers.ContentLength > _options.MaxPageBytes) {
+                return TooLarge(url, response.Content.Headers.ContentLength, fetchedAt);
+            }
+
             // 復号はここで行わない。ヘッダに文字コードを書かず <meta charset> でのみ
             // 宣言するページがあるため、判定はバイト列を見られる抽出側に委ねる。
-            byte[] content = await response.Content
-                .ReadAsByteArrayAsync(linked.Token)
+            byte[]? content = await ReadWithinLimitAsync(response.Content, linked.Token)
                 .ConfigureAwait(false);
+
+            // Content-Length は省略でき、実際の本文と一致する保証もない。読みながらも確かめる。
+            if (content is null) {
+                return TooLarge(url, null, fetchedAt);
+            }
 
             return PageFetchResult.Success(
                 content, response.Content.Headers.ContentType?.CharSet, fetchedAt);
@@ -69,5 +85,52 @@ public sealed class HttpPageFetcher : IPageFetcher {
 
             return PageFetchResult.Failure(exception.Message, fetchedAt);
         }
+    }
+
+    /// <summary>
+    /// 本文を上限まで読み込む。上限を超えた場合は <see langword="null"/> を返す。
+    /// </summary>
+    /// <remarks>
+    /// 超過を検出した時点で読み込みをやめる。最後まで読んでから長さを確かめる方式では、
+    /// 上限を設ける意味が無くなるため。
+    /// </remarks>
+    private async Task<byte[]?> ReadWithinLimitAsync(
+        HttpContent content,
+        CancellationToken cancellationToken) {
+        await using Stream stream = await content
+            .ReadAsStreamAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        using MemoryStream buffer = new();
+        byte[] chunk = new byte[BufferSize];
+
+        while (true) {
+            int read = await stream.ReadAsync(chunk, cancellationToken).ConfigureAwait(false);
+
+            if (read == 0) {
+                return buffer.ToArray();
+            }
+
+            if (buffer.Length + read > _options.MaxPageBytes) {
+                return null;
+            }
+
+            buffer.Write(chunk, 0, read);
+        }
+    }
+
+    /// <summary>
+    /// サイズ上限の超過を失敗として組み立てる。
+    /// </summary>
+    private PageFetchResult TooLarge(Uri url, long? contentLength, DateTimeOffset fetchedAt) {
+        string reason = $"応答のサイズが上限({_options.MaxPageBytes} バイト)を超えた";
+
+        _logger.LogWarning(
+            "ページのサイズが上限を超えました。{Url} 申告 {ContentLength} 上限 {Limit}",
+            url,
+            contentLength,
+            _options.MaxPageBytes);
+
+        return PageFetchResult.Failure(reason, fetchedAt);
     }
 }

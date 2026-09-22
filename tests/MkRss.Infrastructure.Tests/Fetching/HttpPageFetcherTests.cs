@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -16,9 +17,13 @@ public sealed class HttpPageFetcherTests {
     private static readonly Uri PageUrl = new("https://example.com/news/");
     private static readonly DateTimeOffset Now = new(2026, 9, 21, 3, 0, 0, TimeSpan.FromHours(9));
 
+    /// <summary>テストで使う取得サイズの上限。本番の既定値より小さくしてある。</summary>
+    private const int MaxPageBytes = 1024;
+
     private static readonly PageFetcherOptions Options = new(
         UserAgent: "mkrss/1.0 (+https://example.net/about)",
-        Timeout: TimeSpan.FromSeconds(30));
+        Timeout: TimeSpan.FromSeconds(30),
+        MaxPageBytes: MaxPageBytes);
 
     /// <summary>常に同じ時刻を返す <see cref="TimeProvider"/>。</summary>
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider {
@@ -148,6 +153,79 @@ public sealed class HttpPageFetcherTests {
         Assert.True(actual.IsSuccess);
         Assert.Equal(body, actual.Content);
         Assert.Equal("x-unknown-encoding", actual.DeclaredCharset);
+    }
+
+    [Fact]
+    public async Task FetchAsync_ContentLengthExceedsLimit_ReturnsFailureWithoutReadingBody() {
+        // 申告の時点で分かる場合は、本文を読まずに諦める。
+        RecordingStream body = new(new byte[MaxPageBytes + 1]);
+
+        HttpResponseMessage response = new(HttpStatusCode.OK) {
+            Content = new StreamContent(body),
+        };
+        response.Content.Headers.ContentType = new MediaTypeHeaderValue("text/html");
+        response.Content.Headers.ContentLength = MaxPageBytes + 1;
+
+        HttpPageFetcher fetcher = CreateFetcher(new StubHttpMessageHandler(response));
+
+        PageFetchResult actual = await fetcher.FetchAsync(PageUrl, CancellationToken.None);
+
+        Assert.False(actual.IsSuccess);
+        Assert.Contains("サイズ", actual.FailureReason);
+        Assert.False(body.WasRead);
+    }
+
+    /// <summary>
+    /// 読み込まれたかどうかを記録する <see cref="MemoryStream"/>。
+    /// </summary>
+    /// <remarks>
+    /// 応答の破棄でストリームは閉じられるため、位置ではなくこの記録で判定する。
+    /// </remarks>
+    private sealed class RecordingStream(byte[] content) : MemoryStream(content) {
+        public bool WasRead { get; private set; }
+
+        public override int Read(byte[] buffer, int offset, int count) {
+            WasRead = true;
+
+            return base.Read(buffer, offset, count);
+        }
+
+        public override ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default) {
+            WasRead = true;
+
+            return base.ReadAsync(buffer, cancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task FetchAsync_BodyExceedsLimitWithoutContentLength_ReturnsFailure() {
+        // Content-Length は省略できるうえ、実際の本文と一致する保証もない。
+        // 読み込みながら上限を確かめる必要がある。
+        HttpResponseMessage response = new(HttpStatusCode.OK) {
+            Content = new ByteArrayContent(new byte[MaxPageBytes + 1]),
+        };
+        response.Content.Headers.ContentType = new MediaTypeHeaderValue("text/html");
+        response.Content.Headers.ContentLength = null;
+
+        HttpPageFetcher fetcher = CreateFetcher(new StubHttpMessageHandler(response));
+
+        PageFetchResult actual = await fetcher.FetchAsync(PageUrl, CancellationToken.None);
+
+        Assert.False(actual.IsSuccess);
+        Assert.Contains("サイズ", actual.FailureReason);
+    }
+
+    [Fact]
+    public async Task FetchAsync_BodyAtExactLimit_Succeeds() {
+        HttpPageFetcher fetcher = CreateFetcher(
+            new StubHttpMessageHandler(Html(new byte[MaxPageBytes], charset: null)));
+
+        PageFetchResult actual = await fetcher.FetchAsync(PageUrl, CancellationToken.None);
+
+        Assert.True(actual.IsSuccess);
+        Assert.Equal(MaxPageBytes, actual.Content.Length);
     }
 
     [Fact]

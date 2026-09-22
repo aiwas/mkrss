@@ -52,7 +52,8 @@ public class Program {
         // NpgsqlDataSource は接続プールを持つ。DIのライフタイムに載せて確実に破棄する。
         builder.Services.AddSingleton(_ => new NpgsqlDataSourceBuilder(connectionString).Build());
 
-        builder.Services.AddSingleton(new PageFetcherOptions(options.UserAgent, options.FetchTimeout));
+        builder.Services.AddSingleton(
+            new PageFetcherOptions(options.UserAgent, options.FetchTimeout, options.MaxPageBytes));
         builder.Services.AddHttpClient<IPageFetcher, HttpPageFetcher>();
 
         builder.Services.AddScoped<ICrawlTargetSource, NpgsqlCrawlTargetSource>();

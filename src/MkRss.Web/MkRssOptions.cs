@@ -16,6 +16,10 @@ namespace MkRss.Web;
 /// 記号を含む完全な User-Agent 文字列はグループ名として成立しない。
 /// </param>
 /// <param name="FetchTimeout">1ページあたりの取得を諦めるまでの時間。</param>
+/// <param name="MaxPageBytes">
+/// 1ページあたりに読み込むバイト数の上限。超えた場合はそのサイトの取得を失敗として扱う。
+/// 巡回先が巨大な応答を返したときに、タイムアウト内であってもメモリを使い切らないようにする。
+/// </param>
 /// <param name="FeedLimit">1フィードに含める記事の最大件数。</param>
 /// <param name="ApiToken">
 /// <c>/api/</c> 配下を呼び出す際に必要な共有シークレット。
@@ -31,6 +35,7 @@ public sealed record MkRssOptions(
     string UserAgent,
     string RobotsProductToken,
     TimeSpan FetchTimeout,
+    int MaxPageBytes,
     int FeedLimit,
     string ApiToken,
     string? PublicBaseUrl = null) {
