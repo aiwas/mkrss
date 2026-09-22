@@ -15,11 +15,23 @@ public sealed class NpgsqlFeedSource : IFeedSource {
         select id, name, page_url from sites where slug = $1
         """;
 
+    /// <summary>
+    /// 配信する記事を新しい順に読み出す。
+    /// </summary>
+    /// <remarks>
+    /// <c>published_at</c> だけでは順序が定まらない。日付のみの表記は0時に丸められ、
+    /// 日付を抽出できない記事には同一クロールの取得時刻が入るため、同順位が頻繁に生じる。
+    /// PostgreSQL は同順位の並びを保証しないため、応答ごとに順序が変わったり、
+    /// <c>limit</c> の境界で記事が入れ替わったりする。
+    /// 配信内容が変われば ETag も変わるので、条件付きGET(決定事項13)も機能しなくなる。
+    /// <c>first_seen_at</c> はクロールをまたぐ同順位を解決し(後から見つけた記事を上にする)、
+    /// <c>normalized_url</c> は同一クロール内の同順位で一意性を保証する。
+    /// </remarks>
     private const string SelectEntriesSql = """
         select title, normalized_url, published_at
         from articles
         where site_id = $1
-        order by published_at desc
+        order by published_at desc, first_seen_at desc, normalized_url
         limit $2
         """;
 

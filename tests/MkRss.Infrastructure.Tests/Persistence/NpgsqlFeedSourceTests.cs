@@ -42,6 +42,59 @@ public sealed class NpgsqlFeedSourceTests(PostgresFixture fixture) : DatabaseTes
     }
 
     [Fact]
+    public async Task FindBySlugAsync_SamePublishedAt_OrdersByFirstSeenAtDescending() {
+        // 日付のみの表記(2026年9月20日)は0時に丸められるため、同じ日の記事は
+        // クロールをまたいでも同順位になる。第2キーが無いとPostgreSQLは順序を保証しない。
+        // 後から見つけた記事のほうが、一覧ページでは上にある。
+        Guid siteId = await InsertSiteAsync(Slug);
+
+        await InsertArticleAsync(
+            siteId,
+            "https://example.com/news/first-found",
+            "先に見つけた記事",
+            "2026-09-20T00:00:00Z",
+            firstSeenAt: "2026-09-20T03:00:00Z");
+
+        await InsertArticleAsync(
+            siteId,
+            "https://example.com/news/later-found",
+            "後から見つけた記事",
+            "2026-09-20T00:00:00Z",
+            firstSeenAt: "2026-09-21T03:00:00Z");
+
+        FeedData feed = Assert.IsType<FeedData>(await FindAsync(Slug, 50));
+
+        Assert.Equal(
+            ["後から見つけた記事", "先に見つけた記事"],
+            feed.Entries.Select(entry => entry.Title));
+    }
+
+    [Fact]
+    public async Task FindBySlugAsync_SamePublishedAtAndFirstSeenAt_OrdersByUrl() {
+        // 1回のクロールで取得した記事は first_seen_at も同値になる(now() は文単位で同じ)。
+        // 一覧ページ上の並び順は保持していないため、ここは安定することだけを保証する。
+        Guid siteId = await InsertSiteAsync(Slug);
+
+        await InsertArticleAsync(
+            siteId,
+            "https://example.com/news/zebra",
+            "Z の記事",
+            "2026-09-20T00:00:00Z",
+            firstSeenAt: "2026-09-20T03:00:00Z");
+
+        await InsertArticleAsync(
+            siteId,
+            "https://example.com/news/alpha",
+            "A の記事",
+            "2026-09-20T00:00:00Z",
+            firstSeenAt: "2026-09-20T03:00:00Z");
+
+        FeedData feed = Assert.IsType<FeedData>(await FindAsync(Slug, 50));
+
+        Assert.Equal(["A の記事", "Z の記事"], feed.Entries.Select(entry => entry.Title));
+    }
+
+    [Fact]
     public async Task FindBySlugAsync_AppliesLimit() {
         Guid siteId = await InsertSiteAsync(Slug);
         await InsertArticleAsync(siteId, "https://example.com/news/1", "1件目", "2026-09-10T00:00:00Z");
@@ -88,16 +141,22 @@ public sealed class NpgsqlFeedSourceTests(PostgresFixture fixture) : DatabaseTes
             new DateTimeOffset(2026, 9, 20, 1, 30, 0, TimeSpan.Zero), entry.PublishedAt);
     }
 
-    private async Task InsertArticleAsync(Guid siteId, string url, string title, string publishedAt) {
+    private async Task InsertArticleAsync(
+        Guid siteId,
+        string url,
+        string title,
+        string publishedAt,
+        string? firstSeenAt = null) {
         await ExecuteAsync(
             """
-            insert into articles (site_id, normalized_url, title, published_at)
-            values ($1, $2, $3, $4::timestamptz)
+            insert into articles (site_id, normalized_url, title, published_at, first_seen_at)
+            values ($1, $2, $3, $4::timestamptz, coalesce($5::timestamptz, now()))
             """,
             siteId,
             url,
             title,
-            publishedAt);
+            publishedAt,
+            firstSeenAt);
     }
 
     private async Task<FeedData?> FindAsync(string slug, int limit) {
