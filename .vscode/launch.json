@@ -1,0 +1,80 @@
+{
+    // IntelliSense を使用して利用可能な属性を学べます。
+    // 既存の属性の説明をホバーして表示します。
+    // 詳細情報は次を確認してください: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // 唯一、アプリのコードにブレークポイントが効く構成。
+            // launchSettings.json の http プロファイルを使うため、
+            // ポートと ASPNETCORE_ENVIRONMENT はそちらの値になる。
+            "name": "MkRss.Web (デバッグ)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/src/MkRss.Web/bin/Debug/net10.0/MkRss.Web.dll",
+            "cwd": "${workspaceFolder}/src/MkRss.Web",
+            "launchSettingsFilePath": "${workspaceFolder}/src/MkRss.Web/Properties/launchSettings.json",
+            "launchSettingsProfile": "http",
+            "console": "internalConsole",
+            "stopAtEntry": false,
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            }
+        },
+        {
+            // ファイルの変更で再起動する。デバッガが繋がるのは dotnet watch 自身で、
+            // アプリは子プロセスとして起動するため、ブレークポイントは効かない。
+            "name": "MkRss.Web (dotnet watch run)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "dotnet",
+            "args": [
+                "watch",
+                "run",
+                "--project",
+                "${workspaceFolder}/src/MkRss.Web/MkRss.Web.csproj"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            },
+            "console": "integratedTerminal",
+            "stopAtEntry": false
+        },
+        {
+            // DBを使うテストはスキップされる。
+            "name": "テスト (全件)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "dotnet",
+            "args": [
+                "test",
+                "--solution",
+                "${workspaceFolder}/MkRss.slnx"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "stopAtEntry": false
+        },
+        {
+            // DBを使うテストも実行する。Dockerが必要で、1分程度かかる。
+            "name": "テスト (DBを使うテストを含む)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "dotnet",
+            "args": [
+                "test",
+                "--solution",
+                "${workspaceFolder}/MkRss.slnx"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "MKRSS_INTEGRATION_TESTS": "1"
+            },
+            "console": "integratedTerminal",
+            "stopAtEntry": false
+        }
+    ]
+}
