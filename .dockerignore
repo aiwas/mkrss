@@ -1,0 +1,15 @@
+**/bin/
+**/obj/
+*.user
+TestResults/
+
+docs/
+dist/
+tests/
+supabase/
+
+.vscode/
+.git/
+.claude/
+
+**/.env*

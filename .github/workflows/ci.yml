@@ -1,0 +1,46 @@
+name: CI
+
+# 毎pushで実行する。ブランチは限定しない。
+on: push
+
+jobs:
+  test:
+    name: テスト
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # SDKのバージョンは global.json を正とする。ローカルとCIで食い違わせない。
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # DBを使うテストを含めて実行する。既定ではスキップされる設計のため、
+      # この指定が無いと通ったように見えて検証されていない状態になる。
+      # Testcontainers が supabase/postgres (1.7GB) を取得するため、数分かかる。
+      # 匿名pullなので、Docker Hub のレート制限に当たると環境要因で失敗する。
+      - name: テスト (DBを含む)
+        run: dotnet test --solution MkRss.slnx
+        env:
+          MKRSS_INTEGRATION_TESTS: "1"
+
+      # 日時の扱いに環境依存が混入していないかを確かめる。
+      # 対象を Core に絞る。日時のロジックはすべてそこにあり、
+      # 統合テストまで2周させるとコンテナの起動を二重に払うことになるため。
+      - name: タイムゾーンを変えて再実行 (Core のみ)
+        run: dotnet test --project tests/MkRss.Core.Tests/MkRss.Core.Tests.csproj
+        env:
+          TZ: America/New_York
+
+  docker:
+    name: イメージのビルド
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Dockerfile は csproj を1つずつ明示的にCOPYしているため、
+      # プロジェクトを追加すると restore が壊れる。デプロイ前にここで気づく。
+      - name: docker build
+        run: docker build -f Dockerfile -t mkrss-web:ci .
