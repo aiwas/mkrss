@@ -35,10 +35,10 @@ public class Program {
             .Get<MkRssOptions>()
             ?? throw new InvalidOperationException($"設定 '{MkRssOptions.SectionName}' が見つからない。");
 
-        // 未設定のまま起動すると、空文字どうしの比較が成立して認証が素通りする。
-        if (string.IsNullOrEmpty(options.ApiToken)) {
-            throw new InvalidOperationException($"設定 '{MkRssOptions.SectionName}:ApiToken' が設定されていない。");
-        }
+        // 不正な設定は起動時に失敗させる。いずれの項目も、そのまま起動すると例外にはならず
+        // 実行時の挙動としてのみ現れるため、動かしてみるまで気づけない。
+        // 例 : ApiToken が空だと、空文字どうしの比較が成立して認証が素通りする。
+        options.Validate();
 
         // 接続文字列はDBパスワードを含むため全体がシークレット。
         // 開発時は user-secrets、本番は環境変数から読み込む。
