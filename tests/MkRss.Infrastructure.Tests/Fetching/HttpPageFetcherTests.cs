@@ -41,15 +41,32 @@ public sealed class HttpPageFetcherTests {
         };
     }
 
+    /// <summary>
+    /// 任意のバイト列を、指定した <paramref name="charset"/> を申告して返す応答を作る。
+    /// </summary>
+    private static HttpResponseMessage Html(byte[] body, string? charset) {
+        HttpResponseMessage response = new(HttpStatusCode.OK) {
+            Content = new ByteArrayContent(body),
+        };
+
+        response.Content.Headers.ContentType = new MediaTypeHeaderValue("text/html") {
+            CharSet = charset,
+        };
+
+        return response;
+    }
+
     [Fact]
-    public async Task FetchAsync_SuccessfulResponse_ReturnsHtmlAndFetchedAt() {
+    public async Task FetchAsync_SuccessfulResponse_ReturnsContentAndFetchedAt() {
+        // 復号はここで行わない。<meta charset> でのみ宣言するページを読めるよう、
+        // 文字コードの判定は抽出側(AngleSharp)に委ねる。
         StubHttpMessageHandler handler = new(Html("<html><body>本文</body></html>"));
         HttpPageFetcher fetcher = CreateFetcher(handler);
 
         PageFetchResult actual = await fetcher.FetchAsync(PageUrl, CancellationToken.None);
 
         Assert.True(actual.IsSuccess);
-        Assert.Equal("<html><body>本文</body></html>", actual.Html);
+        Assert.Equal("<html><body>本文</body></html>"u8.ToArray(), actual.Content);
         Assert.Equal(Now, actual.FetchedAt);
     }
 
@@ -85,52 +102,52 @@ public sealed class HttpPageFetcherTests {
         PageFetchResult actual = await fetcher.FetchAsync(PageUrl, CancellationToken.None);
 
         Assert.False(actual.IsSuccess);
-        Assert.Null(actual.Html);
+        Assert.Null(actual.Content);
         Assert.Contains(((int)status).ToString(), actual.FailureReason);
         Assert.Equal(Now, actual.FetchedAt);
     }
 
     [Fact]
-    public async Task FetchAsync_ShiftJisCharsetInContentType_IsDecoded() {
+    public async Task FetchAsync_ShiftJisCharsetInContentType_IsReportedWithoutDecoding() {
         // 日本語サイトでは Shift_JIS が現役で使われている。
-        // 登録はプロセス全体に適用されるため、ここで呼んでも本番の動作を保証したことにはならない。
-        // 本番は MkRss.Web.Program の合成ルートで登録している。
+        // 復号せず、申告された名前をそのまま抽出側へ渡す。
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        Encoding shiftJis = Encoding.GetEncoding("shift_jis");
+        byte[] body = Encoding.GetEncoding("shift_jis").GetBytes("<html><body>日本語</body></html>");
 
-        HttpResponseMessage response = new(HttpStatusCode.OK) {
-            Content = new ByteArrayContent(shiftJis.GetBytes("<html><body>日本語</body></html>")),
-        };
-        response.Content.Headers.ContentType = new MediaTypeHeaderValue("text/html") {
-            CharSet = "shift_jis",
-        };
-
-        HttpPageFetcher fetcher = CreateFetcher(new StubHttpMessageHandler(response));
+        HttpPageFetcher fetcher = CreateFetcher(new StubHttpMessageHandler(Html(body, "shift_jis")));
 
         PageFetchResult actual = await fetcher.FetchAsync(PageUrl, CancellationToken.None);
 
-        Assert.Equal("<html><body>日本語</body></html>", actual.Html);
+        Assert.Equal(body, actual.Content);
+        Assert.Equal("shift_jis", actual.DeclaredCharset);
     }
 
     [Fact]
-    public async Task FetchAsync_UnresolvableCharset_ReturnsFailureInsteadOfThrowing() {
-        // 解釈できない charset に対して ReadAsStringAsync は UTF-8 へ倒さず例外を投げる。
-        // これを捕捉しないと、1サイトの申告内容でクロール全体が止まる(決定事項10)。
-        HttpResponseMessage response = new(HttpStatusCode.OK) {
-            Content = new ByteArrayContent([0x93, 0xfa, 0x96, 0x7b]),
-        };
-        response.Content.Headers.ContentType = new MediaTypeHeaderValue("text/html") {
-            CharSet = "x-unknown-encoding",
-        };
-
-        HttpPageFetcher fetcher = CreateFetcher(new StubHttpMessageHandler(response));
+    public async Task FetchAsync_NoCharsetInContentType_ReportsNoDeclaration() {
+        // 申告が無いことと、申告があることを取り違えてはならない。
+        // 申告として何かを渡すと、AngleSharpがページ内の宣言より優先してしまう。
+        HttpPageFetcher fetcher = CreateFetcher(
+            new StubHttpMessageHandler(Html([0x41], charset: null)));
 
         PageFetchResult actual = await fetcher.FetchAsync(PageUrl, CancellationToken.None);
 
-        Assert.False(actual.IsSuccess);
-        Assert.Null(actual.Html);
-        Assert.Contains("文字コード", actual.FailureReason);
-        Assert.Equal(Now, actual.FetchedAt);
+        Assert.True(actual.IsSuccess);
+        Assert.Null(actual.DeclaredCharset);
+    }
+
+    [Fact]
+    public async Task FetchAsync_UnresolvableCharset_IsNotTreatedAsFailure() {
+        // 解釈できない名前を理由にページを捨てない。判定の余地を抽出側に残す。
+        byte[] body = [0x93, 0xfa, 0x96, 0x7b];
+
+        HttpPageFetcher fetcher = CreateFetcher(
+            new StubHttpMessageHandler(Html(body, "x-unknown-encoding")));
+
+        PageFetchResult actual = await fetcher.FetchAsync(PageUrl, CancellationToken.None);
+
+        Assert.True(actual.IsSuccess);
+        Assert.Equal(body, actual.Content);
+        Assert.Equal("x-unknown-encoding", actual.DeclaredCharset);
     }
 
     [Fact]

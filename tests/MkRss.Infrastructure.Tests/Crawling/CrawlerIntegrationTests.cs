@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -97,7 +98,8 @@ public sealed class CrawlerIntegrationTests(PostgresFixture fixture) : DatabaseT
 
             // robots.txt は登録していないため取得失敗となり、許可として扱われる。
             return Task.FromResult(url == pageUrl
-                ? PageFetchResult.Success(html, FetchedAt)
+                ? PageFetchResult.Success(
+                    Encoding.UTF8.GetBytes(html), declaredCharset: null, FetchedAt)
                 : PageFetchResult.Failure("登録されていないURL", FetchedAt));
         }
     }

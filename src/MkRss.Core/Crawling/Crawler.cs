@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -78,7 +79,8 @@ public sealed class Crawler {
 
         try {
             articles = HtmlArticleExtractor.Extract(
-                page.Html,
+                page.Content,
+                page.DeclaredCharset,
                 target.PageUrl,
                 target.Rule,
                 page.FetchedAt);
@@ -129,10 +131,14 @@ public sealed class Crawler {
     /// <summary>
     /// robots.txt を取得して解釈する。取得できない場合は <see langword="null"/> を返す。
     /// </summary>
+    /// <remarks>
+    /// 文字コードは UTF-8 として扱う。RFC 9309 がそう定めているため、
+    /// HTMLのように申告やページ内の宣言を見て判定する必要はない。
+    /// </remarks>
     private async Task<RobotsTxt?> FetchRobotsAsync(Uri pageUrl, CancellationToken cancellationToken) {
         PageFetchResult result = await _fetcher.FetchAsync(
             new Uri(pageUrl, RobotsPath), cancellationToken);
 
-        return result.IsSuccess ? RobotsTxt.Parse(result.Html) : null;
+        return result.IsSuccess ? RobotsTxt.Parse(Encoding.UTF8.GetString(result.Content)) : null;
     }
 }

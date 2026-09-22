@@ -49,11 +49,14 @@ public sealed class HttpPageFetcher : IPageFetcher {
                 return PageFetchResult.Failure(reason, fetchedAt);
             }
 
-            string html = await response.Content
-                .ReadAsStringAsync(linked.Token)
+            // 復号はここで行わない。ヘッダに文字コードを書かず <meta charset> でのみ
+            // 宣言するページがあるため、判定はバイト列を見られる抽出側に委ねる。
+            byte[] content = await response.Content
+                .ReadAsByteArrayAsync(linked.Token)
                 .ConfigureAwait(false);
 
-            return PageFetchResult.Success(html, fetchedAt);
+            return PageFetchResult.Success(
+                content, response.Content.Headers.ContentType?.CharSet, fetchedAt);
         }
         // 呼び出し側によるキャンセルは失敗ではないため、この条件から除外して伝播させる。
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
@@ -65,15 +68,6 @@ public sealed class HttpPageFetcher : IPageFetcher {
             _logger.LogWarning(exception, "ページの取得に失敗しました。{Url}", url);
 
             return PageFetchResult.Failure(exception.Message, fetchedAt);
-        }
-        // Content-Type が申告した charset を解決できない場合、ReadAsStringAsync は
-        // UTF-8 へ倒さずこの例外を投げる。捕捉しないと、1サイトの申告内容で
-        // クロール全体が止まる(決定事項10)。
-        catch (InvalidOperationException exception) {
-            _logger.LogWarning(
-                exception, "ページの文字コードを解釈できませんでした。{Url}", url);
-
-            return PageFetchResult.Failure($"文字コードを解釈できない: {exception.Message}", fetchedAt);
         }
     }
 }

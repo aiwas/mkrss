@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using MkRss.Core.Fetching;
@@ -19,8 +20,15 @@ internal sealed class FakePageFetcher : IPageFetcher {
     /// <summary>取得を要求されたURLを、要求された順に記録する。</summary>
     public List<Uri> RequestedUrls { get; } = [];
 
+    /// <summary>UTF-8 のページを返すよう登録する。文字コードの申告は無いものとして扱う。</summary>
     public void SetContent(Uri url, string content) {
-        _responses[url] = PageFetchResult.Success(content, FetchedAt);
+        _responses[url] = PageFetchResult.Success(
+            Encoding.UTF8.GetBytes(content), declaredCharset: null, FetchedAt);
+    }
+
+    /// <summary>任意のバイト列と申告内容を返すよう登録する。</summary>
+    public void SetContent(Uri url, byte[] content, string? declaredCharset) {
+        _responses[url] = PageFetchResult.Success(content, declaredCharset, FetchedAt);
     }
 
     public void SetFailure(Uri url, string reason) {

@@ -11,8 +11,17 @@ internal static class HtmlFixture {
     /// Fixtures フォルダ直下の <paramref name="fileName"/> を読み込む。
     /// </summary>
     public static string Load(string fileName) {
-        string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", fileName);
+        return File.ReadAllText(Resolve(fileName));
+    }
 
-        return File.ReadAllText(path);
+    /// <summary>
+    /// Fixtures フォルダ直下の <paramref name="fileName"/> を、復号せずに読み込む。
+    /// </summary>
+    public static byte[] LoadBytes(string fileName) {
+        return File.ReadAllBytes(Resolve(fileName));
+    }
+
+    private static string Resolve(string fileName) {
+        return Path.Combine(AppContext.BaseDirectory, "Fixtures", fileName);
     }
 }

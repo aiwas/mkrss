@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -62,6 +63,37 @@ public sealed class CrawlerTests {
 
         Assert.Equal(3, site.ExtractedArticleCount);
         Assert.Equal(1, site.NewArticleCount);
+    }
+
+    [Fact]
+    public async Task RunAsync_ShiftJisPageDeclaredOnlyInMeta_SavesReadableTitles() {
+        // 取得から抽出までを通した確認。取得側が復号すると、この宣言は読めない。
+        // 文字化けしたまま保存すると、増分挿入(ON CONFLICT DO NOTHING)のため
+        // 後から実装を直しても、その行は更新されない。
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        byte[] page = Encoding.GetEncoding("shift_jis").GetBytes("""
+            <!DOCTYPE html>
+            <html lang="ja">
+            <head><meta charset="Shift_JIS"></head>
+            <body>
+              <div class="news-item">
+                <span class="news-title">最初のお知らせ</span>
+                <a href="/news/first">続きを読む</a>
+                <time class="news-date" datetime="2026-09-20T10:30:00+09:00">2026年9月20日</time>
+              </div>
+            </body>
+            </html>
+            """);
+
+        FakePageFetcher fetcher = new();
+        fetcher.SetContent(PageUrl, page, declaredCharset: null);
+        FakeArticleStore store = new();
+
+        await CreateCrawler(fetcher, store, Target).RunAsync(CancellationToken.None);
+
+        (_, var articles) = Assert.Single(store.Saved);
+
+        Assert.Equal("最初のお知らせ", Assert.Single(articles).Title);
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using MkRss.Core.Extraction;
 using MkRss.Core.Tests.Fixtures;
 using Xunit;
@@ -41,6 +42,83 @@ public sealed class HtmlArticleExtractorTests {
                     new DateTimeOffset(2026, 9, 15, 12, 0, 0, Jst)),
             ],
             actual);
+    }
+
+    [Fact]
+    public void Extract_Utf8Bytes_ReturnsSameArticlesAsString() {
+        byte[] content = HtmlFixture.LoadBytes("news-listing.html");
+
+        IReadOnlyList<ExtractedArticle> actual = HtmlArticleExtractor.Extract(
+            content, declaredCharset: null, PageUrl, NewsListingRule, FetchedAt);
+
+        Assert.Equal(
+            HtmlArticleExtractor.Extract(
+                HtmlFixture.Load("news-listing.html"), PageUrl, NewsListingRule, FetchedAt),
+            actual);
+    }
+
+    [Fact]
+    public void Extract_ShiftJisDeclaredOnlyInMeta_IsDecodedCorrectly() {
+        // HTTPヘッダには text/html としか書かず、<meta> でのみ宣言するサイトが存在する。
+        // 復号前のバイト列を渡さないと、この宣言を読む機会そのものが無い。
+        byte[] content = EncodeShiftJis(ShiftJisPage("Shift_JIS"));
+
+        IReadOnlyList<ExtractedArticle> actual = HtmlArticleExtractor.Extract(
+            content, declaredCharset: null, PageUrl, NewsListingRule, FetchedAt);
+
+        Assert.Equal("最初のお知らせ", Assert.Single(actual).Title);
+    }
+
+    [Fact]
+    public void Extract_DeclaredCharset_TakesPrecedenceOverMeta() {
+        // HTML仕様では、転送層が申告した文字コードがページ内の宣言より優先される。
+        // <meta> の宣言が誤っているサイトでも、ヘッダが正しければ読めることになる。
+        byte[] content = EncodeShiftJis(ShiftJisPage("UTF-8"));
+
+        IReadOnlyList<ExtractedArticle> actual = HtmlArticleExtractor.Extract(
+            content, declaredCharset: "shift_jis", PageUrl, NewsListingRule, FetchedAt);
+
+        Assert.Equal("最初のお知らせ", Assert.Single(actual).Title);
+    }
+
+    [Fact]
+    public void Extract_UnresolvableDeclaredCharset_FallsBackToPageDeclaration() {
+        // 申告された名前を解釈できないことを理由にページ全体を捨てない。
+        byte[] content = EncodeShiftJis(ShiftJisPage("Shift_JIS"));
+
+        IReadOnlyList<ExtractedArticle> actual = HtmlArticleExtractor.Extract(
+            content, declaredCharset: "x-unknown-encoding", PageUrl, NewsListingRule, FetchedAt);
+
+        Assert.Equal("最初のお知らせ", Assert.Single(actual).Title);
+    }
+
+    /// <summary>
+    /// <paramref name="metaCharset"/> を宣言する一覧ページのHTMLを組み立てる。
+    /// </summary>
+    private static string ShiftJisPage(string metaCharset) {
+        return $"""
+            <!DOCTYPE html>
+            <html lang="ja">
+            <head><meta charset="{metaCharset}"></head>
+            <body>
+              <ul>
+                <li class="news-item">
+                  <h2 class="news-title">最初のお知らせ</h2>
+                  <a href="/news/first">続きを読む</a>
+                  <time class="news-date" datetime="2026-09-20T10:30:00+09:00">2026年9月20日</time>
+                </li>
+              </ul>
+            </body>
+            </html>
+            """;
+    }
+
+    private static byte[] EncodeShiftJis(string html) {
+        // 登録はプロセス全体に適用されるため、他のテストの実行順に結果が左右されないよう
+        // ここで明示的に呼ぶ。本番は MkRss.Web.Program の合成ルートで登録している。
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
+        return Encoding.GetEncoding("shift_jis").GetBytes(html);
     }
 
     [Fact]
