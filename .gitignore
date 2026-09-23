@@ -1,9 +1,16 @@
+# dotnet
 bin/
 obj/
 *.user
 TestResults/
 
+# env
 .env*
 !.env.example
 
+# mise
+mise.local.toml
+
+# claude
 .claude/workspace/
+.claude/settings.local.json
