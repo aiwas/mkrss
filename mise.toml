@@ -7,17 +7,17 @@ run = "dotnet build MkRss.slnx"
 
 [tasks.dev]
 description = "開発モードで起動します。"
-run = "ASPNETCORE_ENVIRONMENT=Development dotnet watch run --project src/MkRss.Web/MkRss.Web.csproj"
+run = "DOTNET_WATCH_SUPPRESS_STATIC_FILE_HANDLING=1 dotnet watch run --project src/MkRss.Web/MkRss.Web.csproj"
 
 [tasks.test]
 description = "テストを実行します。"
 usage = '''
-flag "--include-integrated" help="統合テストを含める"
+flag "--include-integration" help="統合テストを含める"
 '''
 run = '''
 #!/usr/bin/env bash
-#echo "value=${usage_include_integrated}"
-if [ "${usage_include_integrated:-false}" = "true" ]; then
+#echo "value=${usage_include_integration}"
+if [ "${usage_include_integration:-false}" = "true" ]; then
   #echo "true!"
   MKRSS_INTEGRATION_TESTS=1 dotnet test --solution MkRss.slnx
 else
