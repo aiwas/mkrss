@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>mkrss</title>
+    <!-- ページ単体で完結させる。外部のフォントやスクリプトは参照しない。
+         フィードの一覧は載せない。第三者による列挙を slug のランダム接尾辞で防いでいるため。 -->
+    <style>
+        :root {
+            color-scheme: light dark;
+            --accent: #eb7057;
+            --fg: #222;
+            --muted: #666;
+            --bg: #fff;
+        }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            color: var(--fg);
+            background: var(--bg);
+            font-size: 16px;
+            font-family: system-ui, sans-serif;
+            text-align: center;
+        }
+        main {
+            max-width: 720px;
+        }
+        h1 {
+            margin: 0;
+            font-size: 8rem;
+            color: var(--accent);
+        }
+        p {
+            margin: 0 0 1rem;
+            font-size: 2rem;
+        }
+        .note {
+            color: var(--muted);
+        }
+        a {
+            color: #5788eb;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>mkrss</h1>
+        <!-- <p class="note">make feed</p> -->
+         <a href="/admin">管理画面</a>
+    </main>
+</body>
+</html>

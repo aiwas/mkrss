@@ -83,6 +83,7 @@ public class Program {
         app.MapStaticAssets();
         app.UseAntiforgery();
 
+        app.MapLanding();
         app.MapCrawlApi();
         app.MapFeeds();
         app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
