@@ -91,4 +91,28 @@ public sealed class SiteFormTests {
 
         Assert.Equal(TimeSpan.FromHours(-5), form.ToDraft().Rule.DateOffset);
     }
+
+    /// <summary>
+    /// 新規登録の初期値は日本時間(UTC+9)にする。
+    /// </summary>
+    [Fact]
+    public void New_DateOffsetHours_IsNine() {
+        SiteForm form = new();
+
+        Assert.Equal(9, form.DateOffsetHours);
+    }
+
+    /// <summary>
+    /// 保存済みのオフセットは初期値で置き換えない。
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Draft"/> のオフセットは初期値と同じ 9 のため、
+    /// 往復のテストだけでは読み込み漏れを検出できない。
+    /// </remarks>
+    [Fact]
+    public void From_ZeroDateOffset_KeepsZero() {
+        SiteForm form = SiteForm.From(Draft with { Rule = Draft.Rule with { DateOffset = TimeSpan.Zero } });
+
+        Assert.Equal(0, form.DateOffsetHours);
+    }
 }

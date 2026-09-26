@@ -8,6 +8,8 @@
     @* MudBlazor の静的資産。RCLの資産として _content/ 配下から配信される。
        Robotoは読み込まない。テーマ側でシステムフォントを指定している。 *@
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    @* MudBlazor の規則を上書きするため、必ず後に置く。 *@
+    <link href="@Assets["admin.css"]" rel="stylesheet" />
     <title>mkrss</title>
     <HeadOutlet />
 </head>

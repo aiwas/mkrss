@@ -60,8 +60,9 @@ public sealed class SiteForm {
     /// <remarks>
     /// 列の型は <c>interval</c> なので時間未満のオフセットも保存できるが、
     /// 画面からは時間単位でのみ指定する。
+    /// 初期値は日本時間(UTC+9)。
     /// </remarks>
-    public int DateOffsetHours { get; set; }
+    public int DateOffsetHours { get; set; } = 9;
 
     /// <summary>
     /// 保存済みの内容から入力欄の状態を作る。

@@ -1,0 +1,18 @@
+/* 管理UIの追加スタイル。MudBlazor.min.css より後に読み込む。 */
+
+/* URL・slug・セレクタのように、1文字ずつ読み取る値を等幅で表示する。
+   外部フォントは読み込まず、システムの等幅フォントを使う。 */
+:root {
+    --mkrss-monospace: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* 要素自身に付ける(MudLink など)。 */
+.mkrss-mono {
+    font-family: var(--mkrss-monospace);
+}
+
+/* MudTextField に付ける。ラベルと補足文は変えず、入力部分だけを等幅にする。
+   input は MudBlazor 側で font: inherit になっているため、親の .mud-input に指定する。 */
+.mkrss-mono-input .mud-input {
+    font-family: var(--mkrss-monospace);
+}

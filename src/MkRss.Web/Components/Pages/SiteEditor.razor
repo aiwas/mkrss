@@ -6,23 +6,29 @@
 @inject ISnackbar Snackbar
 
 <MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-4">
-    @(Id is null ? "サイトを登録する" : "サイトを編集する")
+    @(Id is null ? "ウェブサイトを登録する" : "ウェブサイトを編集する")
 </MudText>
 
 @if (_form is null) {
     <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
 } else {
     <MudCard Elevation="1" Class="mb-4">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6" HtmlTag="h2">基本情報</MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
         <MudCardContent>
             <MudStack Spacing="4">
                 <MudTextField T="string"
                               @bind-Value="_form.Name"
-                              Label="サイト名"
+                              Label="ウェブサイト名"
                               Error="@HasError(SiteField.Name)"
                               ErrorText="@ErrorText(SiteField.Name)" />
 
                 <MudTextField T="string"
                               @bind-Value="_form.PageUrl"
+                              Class="mkrss-mono-input"
                               Label="一覧ページのURL"
                               Error="@HasError(SiteField.PageUrl)"
                               ErrorText="@ErrorText(SiteField.PageUrl)" />
@@ -30,6 +36,7 @@
                 <MudStack Row="true" AlignItems="AlignItems.Baseline" Spacing="2">
                     <MudTextField T="string"
                                   @bind-Value="_form.Slug"
+                                  Class="mkrss-mono-input"
                                   Label="slug"
                                   HelperText="フィードの公開URL /feeds/{slug}.xml に使う。"
                                   Error="@HasError(SiteField.Slug)"
@@ -57,6 +64,7 @@
             <MudStack Spacing="4">
                 <MudTextField T="string"
                               @bind-Value="_form.ItemSelector"
+                              Class="mkrss-mono-input"
                               Label="記事1件を表す要素"
                               Error="@HasError(SiteField.ItemSelector)"
                               ErrorText="@ErrorText(SiteField.ItemSelector)" />
@@ -64,11 +72,13 @@
                 <MudStack Row="true" AlignItems="AlignItems.Baseline" Spacing="2">
                     <MudTextField T="string"
                                   @bind-Value="_form.TitleSelector"
+                                  Class="mkrss-mono-input"
                                   Label="タイトルのセレクタ"
                                   Error="@HasError(SiteField.TitleSelector)"
                                   ErrorText="@ErrorText(SiteField.TitleSelector)" />
                     <MudTextField T="string"
                                   @bind-Value="_form.TitleAttribute"
+                                  Class="mkrss-mono-input"
                                   Label="属性名"
                                   HelperText="空なら要素のテキスト" />
                 </MudStack>
@@ -76,10 +86,11 @@
                 <MudStack Row="true" AlignItems="AlignItems.Baseline" Spacing="2">
                     <MudTextField T="string"
                                   @bind-Value="_form.LinkSelector"
+                                  Class="mkrss-mono-input"
                                   Label="記事URLのセレクタ"
                                   Error="@HasError(SiteField.LinkSelector)"
                                   ErrorText="@ErrorText(SiteField.LinkSelector)" />
-                    <MudTextField T="string" @bind-Value="_form.LinkAttribute" Label="属性名" />
+                    <MudTextField T="string" @bind-Value="_form.LinkAttribute" Class="mkrss-mono-input" Label="属性名" />
                 </MudStack>
 
                 <MudCheckBox T="bool"
@@ -91,17 +102,18 @@
                     <MudStack Row="true" AlignItems="AlignItems.Baseline" Spacing="2">
                         <MudTextField T="string"
                                       @bind-Value="_form.DateSelector"
+                                      Class="mkrss-mono-input"
                                       Label="日付のセレクタ"
                                       Error="@HasError(SiteField.DateSelector)"
                                       ErrorText="@ErrorText(SiteField.DateSelector)" />
                         <MudTextField T="string"
                                       @bind-Value="_form.DateAttribute"
+                                      Class="mkrss-mono-input"
                                       Label="属性名"
                                       HelperText="空なら要素のテキスト" />
                         <MudNumericField T="int"
                                          @bind-Value="_form.DateOffsetHours"
-                                         Label="オフセット (時間)"
-                                         HelperText="日本のサイトなら 9" />
+                                         Label="オフセット (時間)" />
                     </MudStack>
                 } else {
                     <MudAlert Severity="Severity.Info" Dense="true">
@@ -110,7 +122,7 @@
                 }
 
                 <MudText Typo="Typo.caption">
-                    セレクタを空にすると、記事1件を表す要素そのものを対象にする。
+                    セレクタを空にした場合、記事1件を表す要素そのものを対象にします。
                 </MudText>
             </MudStack>
         </MudCardContent>

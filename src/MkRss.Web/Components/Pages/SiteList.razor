@@ -3,19 +3,19 @@
 @inject ISiteRepository Sites
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
-    <MudText Typo="Typo.h4" HtmlTag="h1">サイト</MudText>
+    <MudText Typo="Typo.h4" HtmlTag="h1">ウェブサイト一覧</MudText>
     <MudButton Href="/admin/sites/new"
                Variant="Variant.Filled"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.Add">
-        新しいサイトを登録する
+        新しいウェブサイトを登録する
     </MudButton>
 </MudStack>
 
 @if (_sites is null) {
     <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
 } else if (_sites.Count == 0) {
-    <MudAlert Severity="Severity.Info">登録されているサイトが無い。</MudAlert>
+    <MudAlert Severity="Severity.Info">登録されているウェブサイトがありません。</MudAlert>
 } else {
     <MudTable Items="_sites" Hover="true" Dense="true" Elevation="1">
         <HeaderContent>
@@ -26,15 +26,17 @@
         </HeaderContent>
         <RowTemplate Context="site">
             <MudTd DataLabel="名前">
-                <MudLink Href="@($"/admin/sites/{site.Id}")">@site.Draft.Name</MudLink>
+                <MudLink Href="@($"/admin/sites/{site.Id}")" Style="font-weight: bold;">
+                    @site.Draft.Name
+                </MudLink>
             </MudTd>
             <MudTd DataLabel="slug">
-                <MudLink Href="@($"/feeds/{site.Draft.Slug}.xml")" Target="_blank">
+                <MudLink Href="@($"/feeds/{site.Draft.Slug}.xml")" Target="_blank" Class="mkrss-mono">
                     @site.Draft.Slug
                 </MudLink>
             </MudTd>
             <MudTd DataLabel="一覧ページ">
-                <MudLink Href="@site.Draft.PageUrl" Target="_blank">@site.Draft.PageUrl</MudLink>
+                <MudLink Href="@site.Draft.PageUrl" Target="_blank" Class="mkrss-mono">@site.Draft.PageUrl</MudLink>
             </MudTd>
             @* 状態の表示と切り替えを1つにまとめる。
                スイッチの位置がそのまま現在の状態を表す。 *@
@@ -48,9 +50,8 @@
         </RowTemplate>
     </MudTable>
 
-    @* is_enabled は巡回の可否だけを表す。無効にしてもフィードの配信は続く。 *@
-    <MudText Typo="Typo.caption" Class="mt-2 d-block">
-        巡回を止めても、それまでに集めた記事の配信は続く。
+    <MudText Typo="Typo.caption" Class="mt-2 ml-2 d-block">
+        巡回を中止しても、取得済のフィードの配信は継続されます。
     </MudText>
 }
 
