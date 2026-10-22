@@ -2,8 +2,10 @@ using System;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using MkRss.Core.Crawling;
 using MkRss.Core.Feeds;
 using MkRss.Core.Fetching;
@@ -49,6 +51,23 @@ public class Program {
         string connectionString = builder.Configuration[ConnectionStringKey]
             ?? throw new InvalidOperationException($"設定 '{ConnectionStringKey}' が設定されていない。");
 
+        // 公開用と管理用の2つのポートで待ち受ける。どちらで受けたかで応答する範囲を変える。
+        // ポート番号は MkRss の設定だけを正とし、ASPNETCORE_URLS や launchSettings には書かない。
+        // 2箇所に書くと食い違ったときにどちらのポートでも応答しなくなる。
+        ListenerPorts ports = new(options.PublicPort, options.AdminPort);
+
+        builder.WebHost.ConfigureKestrel(kestrel => {
+            // 開発時は手元の外から管理UIに届かないよう、ループバックに限る。
+            // コンテナではホスト側の ports で公開範囲を決めるため、すべてのアドレスで待ち受ける。
+            if (builder.Environment.IsDevelopment()) {
+                kestrel.ListenLocalhost(ports.PublicPort);
+                kestrel.ListenLocalhost(ports.AdminPort);
+            } else {
+                kestrel.ListenAnyIP(ports.PublicPort);
+                kestrel.ListenAnyIP(ports.AdminPort);
+            }
+        });
+
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton(TimeProvider.System);
 
@@ -59,7 +78,7 @@ public class Program {
             new PageFetcherOptions(options.UserAgent, options.FetchTimeout, options.MaxPageBytes));
         builder.Services.AddHttpClient<IPageFetcher, HttpPageFetcher>();
 
-        // Blazor Server の管理UI。フィード配信と同じアプリに同居させる。
+        // Blazor Server の管理UI。フィード配信と同じアプリに同居させ、管理用ポートでのみ応答する。
         // Blazor では Scoped の寿命がリクエストごとではなくサーキット単位になる。
         // ここに登録する実装は接続を保持しない、無状態のものに限ること。
         builder.Services.AddRazorComponents().AddInteractiveServerComponents();
@@ -82,6 +101,9 @@ public class Program {
         builder.Services.AddHostedService<CrawlScheduler>();
 
         WebApplication app = builder.Build();
+
+        // 他のミドルウェアより先に置き、公開用ポートで応答しないものをここで止める。
+        app.UseListenerPorts(ports);
 
         app.MapStaticAssets();
         app.UseAntiforgery();

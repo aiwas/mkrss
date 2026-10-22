@@ -22,6 +22,12 @@ namespace MkRss.Web;
 /// </param>
 /// <param name="FeedLimit">1フィードに含める記事の最大件数。</param>
 /// <param name="CrawlInterval">定期クロールの間隔。</param>
+/// <param name="PublicPort">
+/// 外部に公開するポート。フィードの配信だけに応答する。リバースプロキシはこのポートへ転送する。
+/// </param>
+/// <param name="AdminPort">
+/// 管理用のポート。管理UIを含むすべてに応答する。外部に公開してはならない。
+/// </param>
 /// <param name="PublicBaseUrl">
 /// フィードを公開するURLの基底(例 : <c>https://feeds.example.com</c>)。
 /// リバースプロキシの背後ではリクエストのスキームが <c>http</c> になるため、
@@ -35,6 +41,8 @@ public sealed record MkRssOptions(
     int MaxPageBytes,
     int FeedLimit,
     TimeSpan CrawlInterval,
+    int PublicPort,
+    int AdminPort,
     string? PublicBaseUrl = null) {
     /// <summary>設定の節の名前。</summary>
     public const string SectionName = "MkRss";
@@ -64,6 +72,7 @@ public sealed record MkRssOptions(
         RequirePositive(CrawlInterval > TimeSpan.Zero, nameof(CrawlInterval), CrawlInterval);
         RequireDelayable(CrawlInterval);
 
+        RequirePorts();
         RequireAbsoluteUrl(PublicBaseUrl);
     }
 
@@ -112,6 +121,30 @@ public sealed record MkRssOptions(
         if (value > maximum) {
             throw new InvalidOperationException(
                 $"設定 '{SectionName}:{nameof(CrawlInterval)}' は {maximum} 以下である必要がある。現在の値 : {value}");
+        }
+    }
+
+    /// <summary>
+    /// 公開用と管理用のポートを確かめる。
+    /// </summary>
+    /// <remarks>
+    /// 同じ番号にすると、そのポートは管理用として扱われ、管理UIが公開側に出る。
+    /// </remarks>
+    private void RequirePorts() {
+        RequirePort(PublicPort, nameof(PublicPort));
+        RequirePort(AdminPort, nameof(AdminPort));
+
+        if (PublicPort == AdminPort) {
+            throw new InvalidOperationException(
+                $"設定 '{SectionName}:{nameof(PublicPort)}' と '{SectionName}:{nameof(AdminPort)}' は"
+                + $" 異なる値である必要がある。現在の値 : {PublicPort}");
+        }
+    }
+
+    private static void RequirePort(int value, string name) {
+        if (value is < 1 or > 65535) {
+            throw new InvalidOperationException(
+                $"設定 '{SectionName}:{name}' は 1 から 65535 のポート番号である必要がある。現在の値 : {value}");
         }
     }
 

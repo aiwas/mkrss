@@ -21,9 +21,10 @@ public static class FeedEndpoints {
     /// <remarks>
     /// 認証は設けない。購読者が誰であるかを問わず配信するため。
     /// 第三者による列挙は slug のランダム接尾辞で防ぐ。
+    /// 公開用ポートで応答するのはこのエンドポイントだけ。
     /// </remarks>
     public static IEndpointRouteBuilder MapFeeds(this IEndpointRouteBuilder endpoints) {
-        endpoints.MapGet("/feeds/{slug}.xml", WriteFeedAsync);
+        endpoints.MapGet("/feeds/{slug}.xml", WriteFeedAsync).AllowOnPublicPort();
 
         return endpoints;
     }

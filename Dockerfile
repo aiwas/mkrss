@@ -18,9 +18,11 @@ WORKDIR /app
 
 COPY --from=build /app ./
 
-# 8080 で待ち受ける。外部への公開はリバースプロキシが担当する。
-ENV ASPNETCORE_URLS=http://+:8080
-EXPOSE 8080
+# 待ち受けるポートはアプリの設定(MkRss:PublicPort / MkRss:AdminPort)で決める。
+# 8080 は公開用でリバースプロキシから転送する。9000 は管理用で外部に公開しない。
+# ベースイメージが設定する ASPNETCORE_HTTP_PORTS は使わないため空にする。
+ENV ASPNETCORE_HTTP_PORTS=
+EXPOSE 8080 9000
 
 # イメージが用意する非rootユーザーで動かす。
 USER $APP_UID
