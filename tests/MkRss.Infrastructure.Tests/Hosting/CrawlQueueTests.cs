@@ -16,7 +16,7 @@ public sealed class CrawlQueueTests {
 
     [Fact]
     public void TryEnqueue_WhileAlreadyAccepted_IsRejected() {
-        // 多重クロールを防ぐ。APIはこの結果を 409 Conflict として返す。
+        // 多重クロールを防ぐ。定期実行と手動実行が重なった場合も、後から来た方を断る。
         CrawlQueue queue = new();
 
         queue.TryEnqueue();

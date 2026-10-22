@@ -40,7 +40,7 @@ public class Program {
 
         // 不正な設定は起動時に失敗させる。いずれの項目も、そのまま起動すると例外にはならず
         // 実行時の挙動としてのみ現れるため、動かしてみるまで気づけない。
-        // 例 : ApiToken が空だと、空文字どうしの比較が成立して認証が素通りする。
+        // 例 : FeedLimit が 0 だと、記事が1件も含まれないフィードを配信し続ける。
         options.Validate();
 
         // 接続文字列はDBパスワードを含むため全体がシークレット。
@@ -59,7 +59,7 @@ public class Program {
             new PageFetcherOptions(options.UserAgent, options.FetchTimeout, options.MaxPageBytes));
         builder.Services.AddHttpClient<IPageFetcher, HttpPageFetcher>();
 
-        // Blazor Server の管理UI。APIとフィード配信と同じアプリに同居させる。
+        // Blazor Server の管理UI。フィード配信と同じアプリに同居させる。
         // Blazor では Scoped の寿命がリクエストごとではなくサーキット単位になる。
         // ここに登録する実装は接続を保持しない、無状態のものに限ること。
         builder.Services.AddRazorComponents().AddInteractiveServerComponents();
@@ -75,8 +75,11 @@ public class Program {
         builder.Services.AddScoped<Crawler>();
         builder.Services.AddScoped<CrawlJob>();
 
+        // 定期実行はアプリの中で行う。要求は手動実行と同じく CrawlQueue を通る。
+        builder.Services.AddSingleton(new CrawlSchedule(options.CrawlInterval));
         builder.Services.AddSingleton<CrawlQueue>();
         builder.Services.AddHostedService<CrawlBackgroundService>();
+        builder.Services.AddHostedService<CrawlScheduler>();
 
         WebApplication app = builder.Build();
 
@@ -84,7 +87,6 @@ public class Program {
         app.UseAntiforgery();
 
         app.MapLanding();
-        app.MapCrawlApi();
         app.MapFeeds();
         app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 

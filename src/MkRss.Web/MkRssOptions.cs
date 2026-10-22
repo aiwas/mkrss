@@ -21,10 +21,7 @@ namespace MkRss.Web;
 /// 巡回先が巨大な応答を返したときに、タイムアウト内であってもメモリを使い切らないようにする。
 /// </param>
 /// <param name="FeedLimit">1フィードに含める記事の最大件数。</param>
-/// <param name="ApiToken">
-/// <c>/api/</c> 配下を呼び出す際に必要な共有シークレット。
-/// リバースプロキシで外部に公開しない前提の多層防御であり、これ単独で守る想定ではない。
-/// </param>
+/// <param name="CrawlInterval">定期クロールの間隔。</param>
 /// <param name="PublicBaseUrl">
 /// フィードを公開するURLの基底(例 : <c>https://feeds.example.com</c>)。
 /// リバースプロキシの背後ではリクエストのスキームが <c>http</c> になるため、
@@ -37,7 +34,7 @@ public sealed record MkRssOptions(
     TimeSpan FetchTimeout,
     int MaxPageBytes,
     int FeedLimit,
-    string ApiToken,
+    TimeSpan CrawlInterval,
     string? PublicBaseUrl = null) {
     /// <summary>設定の節の名前。</summary>
     public const string SectionName = "MkRss";
@@ -52,7 +49,6 @@ public sealed record MkRssOptions(
     /// </remarks>
     public void Validate() {
         RequireText(UserAgent, nameof(UserAgent));
-        RequireText(ApiToken, nameof(ApiToken));
         RequireProductToken(RobotsProductToken);
 
         // 0 だと全ページが即タイムアウトする。
@@ -63,6 +59,10 @@ public sealed record MkRssOptions(
 
         // 0 だと記事が1件も含まれないフィードを配信し続ける。
         RequirePositive(FeedLimit > 0, nameof(FeedLimit), FeedLimit);
+
+        // 0 だとクロールが終わるたびに次を始め、巡回先へ絶え間なくリクエストを送る。
+        RequirePositive(CrawlInterval > TimeSpan.Zero, nameof(CrawlInterval), CrawlInterval);
+        RequireDelayable(CrawlInterval);
 
         RequireAbsoluteUrl(PublicBaseUrl);
     }
@@ -96,6 +96,22 @@ public sealed record MkRssOptions(
         if (!isPositive) {
             throw new InvalidOperationException(
                 $"設定 '{SectionName}:{name}' は正の値である必要がある。現在の値 : {value}");
+        }
+    }
+
+    /// <summary>
+    /// クロールの間隔が、待機できる長さに収まっているかを確かめる。
+    /// </summary>
+    /// <remarks>
+    /// <c>Task.Delay</c> が受け付ける待ち時間は約49.7日まで。超えると定期実行の中で例外になり、
+    /// ホストごと停止する。
+    /// </remarks>
+    private static void RequireDelayable(TimeSpan value) {
+        TimeSpan maximum = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
+
+        if (value > maximum) {
+            throw new InvalidOperationException(
+                $"設定 '{SectionName}:{nameof(CrawlInterval)}' は {maximum} 以下である必要がある。現在の値 : {value}");
         }
     }
 

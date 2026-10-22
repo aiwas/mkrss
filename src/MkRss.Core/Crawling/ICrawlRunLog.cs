@@ -40,6 +40,7 @@ public sealed record CrawlRunSiteStatus(
 /// <summary>
 /// クロール実行の記録。
 /// </summary>
+/// <param name="Id">実行の識別子。</param>
 /// <param name="StartedAt">開始日時。</param>
 /// <param name="FinishedAt">終了日時。実行中の場合は <see langword="null"/>。</param>
 /// <param name="Status">状態。<c>running</c> / <c>succeeded</c> / <c>failed</c> のいずれか。</param>
@@ -49,6 +50,7 @@ public sealed record CrawlRunSiteStatus(
 /// サイトごとの内訳。実行中、またはサイトを1件も処理できなかった場合は空になる。
 /// </param>
 public sealed record CrawlRunStatus(
+    Guid Id,
     DateTimeOffset StartedAt,
     DateTimeOffset? FinishedAt,
     string Status,
@@ -57,11 +59,12 @@ public sealed record CrawlRunStatus(
     IReadOnlyList<CrawlRunSiteStatus> Sites);
 
 /// <summary>
-/// クロール実行の記録を残す。
+/// クロール実行の記録を残し、読み出す。
 /// </summary>
 /// <remarks>
-/// CRONは <c>POST /api/crawl</c> の応答でクロールの成否を知ることができない。
-/// exit code による失敗検知の代替として、実行結果をここに残す。
+/// クロールはバックグラウンドで実行され、成否を呼び出し元へ返す経路が無い。
+/// 結果はここに残し、管理UIの実行履歴で確認する。
+/// 定期実行の次の時刻も、この記録の開始時刻から求める。
 /// </remarks>
 public interface ICrawlRunLog {
     /// <summary>
@@ -92,7 +95,9 @@ public interface ICrawlRunLog {
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// 直近の実行の記録を返す。1件も無い場合は <see langword="null"/>。
+    /// 新しい順に、最大 <paramref name="limit"/> 件の実行の記録を返す。
     /// </summary>
-    Task<CrawlRunStatus?> FindLatestAsync(CancellationToken cancellationToken);
+    /// <param name="limit">返す件数の上限。</param>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    Task<IReadOnlyList<CrawlRunStatus>> ListRecentAsync(int limit, CancellationToken cancellationToken);
 }

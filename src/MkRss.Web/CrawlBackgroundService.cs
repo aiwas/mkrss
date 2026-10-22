@@ -13,8 +13,8 @@ namespace MkRss.Web;
 /// キューに入った実行要求を順に処理する。
 /// </summary>
 /// <remarks>
-/// HTTPリクエスト内でクロールを完走させると、リバースプロキシのタイムアウトにより
-/// CRON側が失敗と判断し、再実行で多重クロールが発生する。そのためここで実行する。
+/// 要求は <see cref="CrawlScheduler"/> の定期実行と、管理UIからの手動実行の2か所から入る。
+/// どちらから入っても、実行はここで1つずつ行う。
 /// </remarks>
 public sealed class CrawlBackgroundService : BackgroundService {
     private readonly CrawlQueue _queue;

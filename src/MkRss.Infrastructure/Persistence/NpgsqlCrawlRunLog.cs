@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MkRss.Core.Crawling;
@@ -34,24 +35,27 @@ public sealed class NpgsqlCrawlRunLog : ICrawlRunLog {
         select $1, * from unnest($5::uuid[], $6::text[], $7::integer[], $8::integer[], $9::text[])
         """;
 
-    private const string LatestSql = """
+    /// <summary>
+    /// 開始日時が同じ行の並びを固定するため、識別子を第2キーにする。
+    /// </summary>
+    private const string RecentSql = """
         select id, started_at, finished_at, status, new_article_count, error_message
         from crawl_runs
-        order by started_at desc
-        limit 1
+        order by started_at desc, id
+        limit $1
         """;
 
     /// <summary>
     /// サイト名は <c>sites</c> から引く。記録時点の名前ではなく現在の名前になるが、
-    /// 応答を読んで対象を判別するための表示であり、履歴として保持する値ではない。
+    /// 画面で対象を判別するための表示であり、履歴として保持する値ではない。
     /// </summary>
     private const string SitesSql = """
-        select r.site_id, s.name, r.outcome,
+        select r.crawl_run_id, r.site_id, s.name, r.outcome,
                r.extracted_article_count, r.new_article_count, r.failure_reason
         from crawl_run_sites r
         join sites s on s.id = r.site_id
-        where r.crawl_run_id = $1
-        order by s.name
+        where r.crawl_run_id = any($1)
+        order by s.name, r.site_id
         """;
 
     private readonly NpgsqlDataSource _dataSource;
@@ -106,63 +110,79 @@ public sealed class NpgsqlCrawlRunLog : ICrawlRunLog {
     }
 
     /// <inheritdoc />
-    public async Task<CrawlRunStatus?> FindLatestAsync(CancellationToken cancellationToken) {
-        (Guid RunId, CrawlRunStatus Status)? latest = await FindLatestRunAsync(cancellationToken);
+    public async Task<IReadOnlyList<CrawlRunStatus>> ListRecentAsync(
+        int limit,
+        CancellationToken cancellationToken) {
+        List<CrawlRunStatus> runs = await ReadRunsAsync(limit, cancellationToken);
 
-        if (latest is null) {
-            return null;
+        if (runs.Count == 0) {
+            return runs;
         }
 
-        return latest.Value.Status with {
-            Sites = await ReadSitesAsync(latest.Value.RunId, cancellationToken),
-        };
+        // 内訳は実行ごとに問い合わせず、1回でまとめて読み出してから振り分ける。
+        Dictionary<Guid, List<CrawlRunSiteStatus>> sites = await ReadSitesAsync(
+            [.. runs.Select(run => run.Id)], cancellationToken);
+
+        return [.. runs.Select(run => run with {
+            Sites = sites.TryGetValue(run.Id, out List<CrawlRunSiteStatus>? found) ? found : [],
+        })];
     }
 
     /// <summary>
-    /// 直近の実行を、内訳を除いて読み出す。
+    /// 実行の記録を、内訳を除いて読み出す。
     /// </summary>
-    private async Task<(Guid RunId, CrawlRunStatus Status)?> FindLatestRunAsync(
-        CancellationToken cancellationToken) {
-        await using NpgsqlCommand command = _dataSource.CreateCommand(LatestSql);
+    private async Task<List<CrawlRunStatus>> ReadRunsAsync(int limit, CancellationToken cancellationToken) {
+        await using NpgsqlCommand command = _dataSource.CreateCommand(RecentSql);
+
+        command.Parameters.Add(new NpgsqlParameter { Value = limit });
+
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        if (!await reader.ReadAsync(cancellationToken)) {
-            return null;
-        }
+        List<CrawlRunStatus> runs = [];
 
-        return (
-            reader.GetGuid(0),
-            new CrawlRunStatus(
+        while (await reader.ReadAsync(cancellationToken)) {
+            runs.Add(new CrawlRunStatus(
+                Id: reader.GetGuid(0),
                 StartedAt: reader.GetFieldValue<DateTimeOffset>(1),
                 FinishedAt: reader.IsDBNull(2) ? null : reader.GetFieldValue<DateTimeOffset>(2),
                 Status: reader.GetString(3),
                 NewArticleCount: reader.GetInt32(4),
                 ErrorMessage: reader.IsDBNull(5) ? null : reader.GetString(5),
                 Sites: []));
+        }
+
+        return runs;
     }
 
     /// <summary>
-    /// 1回の実行におけるサイトごとの内訳を読み出す。
+    /// 指定した実行におけるサイトごとの内訳を、実行の識別子ごとに分けて読み出す。
     /// </summary>
-    private async Task<IReadOnlyList<CrawlRunSiteStatus>> ReadSitesAsync(
-        Guid runId,
+    private async Task<Dictionary<Guid, List<CrawlRunSiteStatus>>> ReadSitesAsync(
+        Guid[] runIds,
         CancellationToken cancellationToken) {
         await using NpgsqlCommand command = _dataSource.CreateCommand(SitesSql);
 
-        command.Parameters.Add(new NpgsqlParameter { Value = runId });
+        command.Parameters.Add(new NpgsqlParameter { Value = runIds });
 
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        List<CrawlRunSiteStatus> sites = [];
+        Dictionary<Guid, List<CrawlRunSiteStatus>> sites = [];
 
         while (await reader.ReadAsync(cancellationToken)) {
-            sites.Add(new CrawlRunSiteStatus(
-                SiteId: reader.GetGuid(0),
-                SiteName: reader.GetString(1),
-                Outcome: reader.GetString(2),
-                ExtractedArticleCount: reader.GetInt32(3),
-                NewArticleCount: reader.GetInt32(4),
-                FailureReason: reader.IsDBNull(5) ? null : reader.GetString(5)));
+            Guid runId = reader.GetGuid(0);
+
+            if (!sites.TryGetValue(runId, out List<CrawlRunSiteStatus>? list)) {
+                list = [];
+                sites.Add(runId, list);
+            }
+
+            list.Add(new CrawlRunSiteStatus(
+                SiteId: reader.GetGuid(1),
+                SiteName: reader.GetString(2),
+                Outcome: reader.GetString(3),
+                ExtractedArticleCount: reader.GetInt32(4),
+                NewArticleCount: reader.GetInt32(5),
+                FailureReason: reader.IsDBNull(6) ? null : reader.GetString(6)));
         }
 
         return sites;

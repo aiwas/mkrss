@@ -41,7 +41,7 @@ internal sealed class FakeCrawlRunLog : ICrawlRunLog {
         return Task.CompletedTask;
     }
 
-    public Task<CrawlRunStatus?> FindLatestAsync(CancellationToken cancellationToken) {
+    public Task<IReadOnlyList<CrawlRunStatus>> ListRecentAsync(int limit, CancellationToken cancellationToken) {
         throw new NotSupportedException("このテストでは使用しない。");
     }
 }
