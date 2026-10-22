@@ -1,0 +1,168 @@
+@page "/admin/runs"
+@rendermode InteractiveServer
+@inject ICrawlRunLog RunLog
+@inject CrawlQueue Queue
+@inject ISnackbar Snackbar
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <MudText Typo="Typo.h4" HtmlTag="h1">クロールの実行履歴</MudText>
+    <MudStack Row="true" Spacing="2">
+        <MudButton Variant="Variant.Outlined"
+                   StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="LoadAsync">
+            再読み込み
+        </MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.PlayArrow"
+                   OnClick="RequestCrawl">
+            今すぐ実行する
+        </MudButton>
+    </MudStack>
+</MudStack>
+
+@if (_runs is null) {
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+} else if (_runs.Count == 0) {
+    <MudAlert Severity="Severity.Info">まだ一度も実行されていません。</MudAlert>
+} else {
+    <MudTable Items="_runs" Hover="true" Dense="true" Elevation="1">
+        <HeaderContent>
+            <MudTh>開始</MudTh>
+            <MudTh>所要時間</MudTh>
+            <MudTh>状態</MudTh>
+            <MudTh>新規の記事</MudTh>
+            <MudTh>内訳</MudTh>
+        </HeaderContent>
+        <RowTemplate Context="run">
+            <MudTd DataLabel="開始" Class="mkrss-mono">@FormatTime(run.StartedAt)</MudTd>
+            <MudTd DataLabel="所要時間" Class="mkrss-mono">@FormatDuration(run)</MudTd>
+            <MudTd DataLabel="状態">
+                <MudChip T="string" Size="Size.Small" Color="@StatusColor(run.Status)">
+                    @StatusLabel(run.Status)
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="新規の記事">@run.NewArticleCount</MudTd>
+            <MudTd DataLabel="内訳">
+                <MudIconButton Icon="@(_expanded.Contains(run.Id) ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                               Size="Size.Small"
+                               OnClick="@(() => Toggle(run.Id))"
+                               aria-label="サイトごとの内訳を表示する" />
+            </MudTd>
+        </RowTemplate>
+        <ChildRowContent Context="run">
+            @if (_expanded.Contains(run.Id)) {
+                <MudTr>
+                    <td colspan="5" class="pa-4">
+                        @* 内訳が無いのは、巡回対象の読み出しなどサイトの処理に入る前に失敗した場合。
+                           そのときの理由は実行全体の記録にしか残らない。 *@
+                        @if (run.Sites.Count == 0) {
+                            @if (run.ErrorMessage is not null) {
+                                <MudAlert Severity="Severity.Error" Dense="true">@run.ErrorMessage</MudAlert>
+                            } else {
+                                <MudText Typo="Typo.body2">サイトごとの記録はありません。</MudText>
+                            }
+                        } else {
+                            <MudSimpleTable Dense="true" Elevation="0">
+                                <thead>
+                                    <tr>
+                                        <th>ウェブサイト</th>
+                                        <th>結果</th>
+                                        <th>抽出</th>
+                                        <th>新規</th>
+                                        <th>理由</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (CrawlRunSiteStatus site in run.Sites) {
+                                        <tr>
+                                            <td>
+                                                <MudLink Href="@($"/admin/sites/{site.SiteId}")">@site.SiteName</MudLink>
+                                            </td>
+                                            <td>@OutcomeLabel(site.Outcome)</td>
+                                            <td>@site.ExtractedArticleCount</td>
+                                            <td>@site.NewArticleCount</td>
+                                            <td>@site.FailureReason</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </MudSimpleTable>
+                        }
+                    </td>
+                </MudTr>
+            }
+        </ChildRowContent>
+    </MudTable>
+
+    <MudText Typo="Typo.caption" Class="mt-2 ml-2 d-block">
+        直近 @RunCount 件を表示しています。抽出が0件のサイトは、セレクタが機能していない可能性があります。
+    </MudText>
+}
+
+@code {
+    private const int RunCount = 20;
+
+    private IReadOnlyList<CrawlRunStatus>? _runs;
+    private readonly HashSet<Guid> _expanded = [];
+
+    protected override async Task OnInitializedAsync() {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() {
+        _runs = await RunLog.ListRecentAsync(RunCount, CancellationToken.None);
+    }
+
+    private void RequestCrawl() {
+        // 実行はバックグラウンドで行われ、ここでは受け付けたかどうかしか分からない。
+        if (Queue.TryEnqueue()) {
+            Snackbar.Add("クロールを開始しました。結果は再読み込みで確認できます。", Severity.Success);
+        } else {
+            Snackbar.Add("クロールは実行中です。", Severity.Info);
+        }
+    }
+
+    private void Toggle(Guid runId) {
+        if (!_expanded.Remove(runId)) {
+            _expanded.Add(runId);
+        }
+    }
+
+    // 表示はサーバーのタイムゾーンで行う。オフセットを併記して、どの時刻帯かを明示する。
+    private static string FormatTime(DateTimeOffset value) {
+        return value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz");
+    }
+
+    private static string FormatDuration(CrawlRunStatus run) {
+        return run.FinishedAt is null
+            ? "-"
+            : (run.FinishedAt.Value - run.StartedAt).ToString(@"hh\:mm\:ss");
+    }
+
+    private static string StatusLabel(string status) {
+        return status switch {
+            "running" => "実行中",
+            "succeeded" => "成功",
+            "failed" => "失敗あり",
+            _ => status,
+        };
+    }
+
+    private static Color StatusColor(string status) {
+        return status switch {
+            "succeeded" => Color.Success,
+            "failed" => Color.Error,
+            _ => Color.Default,
+        };
+    }
+
+    private static string OutcomeLabel(string outcome) {
+        return outcome switch {
+            "succeeded" => "成功",
+            "fetch_failed" => "取得に失敗",
+            "extraction_failed" => "抽出に失敗",
+            "disallowed_by_robots" => "robots.txt により除外",
+            _ => outcome,
+        };
+    }
+}
