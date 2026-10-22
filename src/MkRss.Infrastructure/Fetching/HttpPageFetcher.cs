@@ -80,7 +80,10 @@ public sealed class HttpPageFetcher : IPageFetcher {
             _logger.LogWarning("ページの取得がタイムアウトしました。{Url} {Timeout}", url, _options.Timeout);
 
             return PageFetchResult.Failure(reason, fetchedAt);
-        } catch (HttpRequestException exception) {
+        }
+        // 本文の読み込み中に接続が切れた場合は HttpRequestException ではなく
+        // HttpIOException(IOException の派生)になる。捕捉しないとクロール全体が止まる。
+        catch (Exception exception) when (exception is HttpRequestException or IOException) {
             _logger.LogWarning(exception, "ページの取得に失敗しました。{Url}", url);
 
             return PageFetchResult.Failure(exception.Message, fetchedAt);

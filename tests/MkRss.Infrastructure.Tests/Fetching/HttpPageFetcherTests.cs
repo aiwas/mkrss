@@ -236,6 +236,40 @@ public sealed class HttpPageFetcherTests {
     }
 
     [Fact]
+    public async Task FetchAsync_ConnectionLostWhileReadingBody_ReturnsFailureInsteadOfThrowing() {
+        // ResponseHeadersRead を指定しているため、本文はヘッダの受信後に読む。
+        // この段階の切断は HttpRequestException ではなく HttpIOException(IOException の派生)になる。
+        HttpResponseMessage response = new(HttpStatusCode.OK) {
+            Content = new StreamContent(new FailingStream()),
+        };
+        response.Content.Headers.ContentType = new MediaTypeHeaderValue("text/html");
+
+        HttpPageFetcher fetcher = CreateFetcher(new StubHttpMessageHandler(response));
+
+        PageFetchResult actual = await fetcher.FetchAsync(PageUrl, CancellationToken.None);
+
+        Assert.False(actual.IsSuccess);
+        Assert.Contains(FailingStream.Message, actual.FailureReason);
+    }
+
+    /// <summary>
+    /// 読み込もうとすると接続の切断を表す例外を投げる <see cref="MemoryStream"/>。
+    /// </summary>
+    private sealed class FailingStream : MemoryStream {
+        public const string Message = "応答の途中で接続が切断された";
+
+        public override int Read(byte[] buffer, int offset, int count) {
+            throw new HttpIOException(HttpRequestError.ResponseEnded, Message);
+        }
+
+        public override ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default) {
+            throw new HttpIOException(HttpRequestError.ResponseEnded, Message);
+        }
+    }
+
+    [Fact]
     public async Task FetchAsync_ExceedingTimeout_ReturnsFailure() {
         PageFetcherOptions options = Options with { Timeout = TimeSpan.FromMilliseconds(50) };
         StubHttpMessageHandler handler = new(async (_, token) => {
