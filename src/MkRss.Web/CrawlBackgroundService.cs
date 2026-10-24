@@ -46,7 +46,7 @@ public sealed class CrawlBackgroundService : BackgroundService {
             } catch (Exception exception) {
                 // ここで受け止めないとバックグラウンド実行そのものが停止し、
                 // 以降の要求が一切処理されなくなる。失敗自体は CrawlJob が記録済み。
-                _logger.LogError(exception, "クロールの実行が異常終了した。");
+                _logger.LogError(exception, "クロール実行失敗");
             } finally {
                 _queue.Complete();
             }
@@ -61,7 +61,7 @@ public sealed class CrawlBackgroundService : BackgroundService {
         CrawlReport report = await job.ExecuteAsync(cancellationToken);
 
         _logger.LogInformation(
-            "クロールが完了した。対象 {Sites} 件、新規 {Articles} 件。",
+            "クロール完了 (対象: {Sites}件、新規: {Articles}件)",
             report.Sites.Count,
             report.NewArticleCount);
     }

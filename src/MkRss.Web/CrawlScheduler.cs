@@ -56,7 +56,7 @@ public sealed class CrawlScheduler : BackgroundService {
                 DateTimeOffset next = _schedule.NextRunAt(Latest(recordedAt, requestedAt), now);
 
                 if (next > now) {
-                    _logger.LogInformation("次のクロールは {NextRunAt} に実行する。", next);
+                    _logger.LogInformation("次回クロール予定: {NextRunAt}", DisplayTime.Format(next));
 
                     await Task.Delay(next - now, _timeProvider, stoppingToken);
 
@@ -65,7 +65,7 @@ public sealed class CrawlScheduler : BackgroundService {
 
                 if (!_queue.TryEnqueue()) {
                     // 手動で実行されたものが走っている。それを今回の実行とみなす。
-                    _logger.LogInformation("クロールが実行中のため、定期実行を見送った。");
+                    _logger.LogInformation("定期実行見送り (クロール実行中)");
                 }
 
                 requestedAt = now;
@@ -98,7 +98,7 @@ public sealed class CrawlScheduler : BackgroundService {
 
             return (await log.ListRecentAsync(1, cancellationToken)).FirstOrDefault()?.StartedAt;
         } catch (Exception exception) when (exception is not OperationCanceledException) {
-            _logger.LogWarning(exception, "直近のクロールの記録を読めなかった。");
+            _logger.LogWarning(exception, "実行記録の読み込み失敗");
 
             return null;
         }

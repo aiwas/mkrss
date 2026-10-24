@@ -42,7 +42,7 @@ public sealed class Crawler {
     public async Task<CrawlReport> RunAsync(CancellationToken cancellationToken) {
         IReadOnlyList<CrawlTarget> targets = await _targets.ListEnabledAsync(cancellationToken);
 
-        _logger.LogInformation("クロールを開始する。対象 {Count} 件。", targets.Count);
+        _logger.LogInformation("クロール開始 (対象: {Count}件)", targets.Count);
 
         List<SiteCrawlResult> results = [];
         Dictionary<string, RobotsTxt?> robotsByOrigin = [];
@@ -59,7 +59,7 @@ public sealed class Crawler {
         Dictionary<string, RobotsTxt?> robotsByOrigin,
         CancellationToken cancellationToken) {
         if (!await IsAllowedAsync(target.PageUrl, robotsByOrigin, cancellationToken)) {
-            _logger.LogInformation("{Site} は robots.txt により許可されていない。", target.Name);
+            _logger.LogInformation("robots.txt により除外: {Site}", target.Name);
 
             return new SiteCrawlResult(target.Id, CrawlOutcome.DisallowedByRobots, 0, 0, null);
         }
@@ -69,7 +69,7 @@ public sealed class Crawler {
         if (!page.IsSuccess) {
             // 1サイトの失敗で全体を止めない。他サイトのフィード更新まで巻き添えにしないため。
             _logger.LogWarning(
-                "{Site} の取得に失敗した。{Reason}", target.Name, page.FailureReason);
+                "取得失敗: {Site} ({Reason})", target.Name, page.FailureReason);
 
             return new SiteCrawlResult(
                 target.Id, CrawlOutcome.FetchFailed, 0, 0, page.FailureReason);
@@ -89,7 +89,7 @@ public sealed class Crawler {
             // 例外の型は抽出に使うライブラリの都合で決まるので、型を限定せずに受け止める。
             // キャンセルだけは失敗として扱わず、呼び出し側へ伝える。
             _logger.LogWarning(
-                exception, "{Site} の抽出に失敗した。抽出規則を確認すること。", target.Name);
+                exception, "抽出失敗: {Site} (抽出規則を確認すること)", target.Name);
 
             return new SiteCrawlResult(
                 target.Id, CrawlOutcome.ExtractionFailed, 0, 0, exception.Message);
@@ -98,7 +98,7 @@ public sealed class Crawler {
         int newArticleCount = await _store.SaveNewAsync(target.Id, articles, cancellationToken);
 
         _logger.LogInformation(
-            "{Site} の処理が完了した。抽出 {Extracted} 件、新規 {Count} 件。",
+            "処理完了: {Site} (抽出: {Extracted}件、新規: {Count}件)",
             target.Name,
             articles.Count,
             newArticleCount);

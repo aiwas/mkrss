@@ -51,7 +51,7 @@ public sealed class HttpPageFetcher : IPageFetcher {
 
             if (!response.IsSuccessStatusCode) {
                 string reason = $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}".TrimEnd();
-                _logger.LogWarning("ページの取得に失敗しました。{Url} {Reason}", url, reason);
+                _logger.LogWarning("ページ取得失敗: {Url} ({Reason})", url, reason);
 
                 return PageFetchResult.Failure(reason, fetchedAt);
             }
@@ -77,14 +77,14 @@ public sealed class HttpPageFetcher : IPageFetcher {
         // 呼び出し側によるキャンセルは失敗ではないため、この条件から除外して伝播させる。
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
             string reason = $"タイムアウト ({_options.Timeout.TotalSeconds:0.#}秒)";
-            _logger.LogWarning("ページの取得がタイムアウトしました。{Url} {Timeout}", url, _options.Timeout);
+            _logger.LogWarning("ページ取得失敗: {Url} ({Reason})", url, reason);
 
             return PageFetchResult.Failure(reason, fetchedAt);
         }
         // 本文の読み込み中に接続が切れた場合は HttpRequestException ではなく
         // HttpIOException(IOException の派生)になる。捕捉しないとクロール全体が止まる。
         catch (Exception exception) when (exception is HttpRequestException or IOException) {
-            _logger.LogWarning(exception, "ページの取得に失敗しました。{Url}", url);
+            _logger.LogWarning(exception, "ページ取得失敗: {Url} ({Reason})", url, exception.Message);
 
             return PageFetchResult.Failure(exception.Message, fetchedAt);
         }
@@ -128,10 +128,11 @@ public sealed class HttpPageFetcher : IPageFetcher {
     private PageFetchResult TooLarge(Uri url, long? contentLength, DateTimeOffset fetchedAt) {
         string reason = $"応答のサイズが上限({_options.MaxPageBytes} バイト)を超えた";
 
+        // 申告が無い場合に "(null)" と出さないよう、文字列にしてから渡す。
         _logger.LogWarning(
-            "ページのサイズが上限を超えました。{Url} 申告 {ContentLength} 上限 {Limit}",
+            "ページ取得失敗: {Url} (サイズ上限超過、申告: {ContentLength}、上限: {Limit}バイト)",
             url,
-            contentLength,
+            contentLength is null ? "なし" : $"{contentLength}バイト",
             _options.MaxPageBytes);
 
         return PageFetchResult.Failure(reason, fetchedAt);

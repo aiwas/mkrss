@@ -36,7 +36,7 @@ public sealed class CrawlJob {
         try {
             report = await _crawler.RunAsync(cancellationToken);
         } catch (Exception exception) {
-            _logger.LogError(exception, "クロールが異常終了した。");
+            _logger.LogError(exception, "クロール異常終了");
 
             // 中断された場合も記録する。ここでトークンを使うと記録自体が中断される。
             await _log.FinishAsync(
