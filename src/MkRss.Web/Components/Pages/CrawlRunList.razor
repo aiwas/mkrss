@@ -35,7 +35,7 @@
             <MudTh>内訳</MudTh>
         </HeaderContent>
         <RowTemplate Context="run">
-            <MudTd DataLabel="開始" Class="mkrss-mono">@FormatTime(run.StartedAt)</MudTd>
+            <MudTd DataLabel="開始" Class="mkrss-mono">@DisplayTime.Format(run.StartedAt)</MudTd>
             <MudTd DataLabel="所要時間" Class="mkrss-mono">@FormatDuration(run)</MudTd>
             <MudTd DataLabel="状態">
                 <MudChip T="string" Size="Size.Small" Color="@StatusColor(run.Status)">
@@ -128,15 +128,22 @@
         }
     }
 
-    // 表示はサーバーのタイムゾーンで行う。オフセットを併記して、どの時刻帯かを明示する。
-    private static string FormatTime(DateTimeOffset value) {
-        return value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz");
-    }
-
+    // 1時間を超えても時間の単位は使わず、分で表す(例 : 75m)。
+    // 分があるときの0秒は省く。1秒未満の実行だけは何も表示しないと分かりにくいため 0s とする。
     private static string FormatDuration(CrawlRunStatus run) {
-        return run.FinishedAt is null
-            ? "-"
-            : (run.FinishedAt.Value - run.StartedAt).ToString(@"hh\:mm\:ss");
+        if (run.FinishedAt is null) {
+            return "-";
+        }
+
+        TimeSpan elapsed = run.FinishedAt.Value - run.StartedAt;
+        int minutes = (int)elapsed.TotalMinutes;
+        int seconds = elapsed.Seconds;
+
+        return (minutes, seconds) switch {
+            (0, _) => $"{seconds}s",
+            (_, 0) => $"{minutes}m",
+            _ => $"{minutes}m{seconds}s",
+        };
     }
 
     private static string StatusLabel(string status) {
