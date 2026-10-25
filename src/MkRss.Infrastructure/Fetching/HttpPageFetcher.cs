@@ -71,8 +71,13 @@ public sealed class HttpPageFetcher : IPageFetcher {
                 return TooLarge(url, null, fetchedAt);
             }
 
+            // HttpClient はリダイレクトを辿ると RequestMessage.RequestUri を最後のURLに書き換える。
+            // 抽出側は相対URLをこのURLを基準に解決する。
             return PageFetchResult.Success(
-                content, response.Content.Headers.ContentType?.CharSet, fetchedAt);
+                content,
+                response.Content.Headers.ContentType?.CharSet,
+                response.RequestMessage?.RequestUri ?? url,
+                fetchedAt);
         }
         // 呼び出し側によるキャンセルは失敗ではないため、この条件から除外して伝播させる。
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {

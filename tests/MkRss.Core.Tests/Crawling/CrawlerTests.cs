@@ -98,6 +98,28 @@ public sealed class CrawlerTests {
     }
 
     [Fact]
+    public async Task RunAsync_Redirected_ResolvesRelativeLinksAgainstFinalUrl() {
+        // /news が /news/ へリダイレクトされるサイト。登録したURLを基準にすると
+        // item.html が /item.html に解決され、リンク切れの記事として保存される。
+        Uri registeredUrl = new("https://example.com/news");
+        Uri finalUrl = new("https://example.com/news/");
+        FakePageFetcher fetcher = new();
+        fetcher.SetRedirectedContent(registeredUrl, finalUrl, """
+            <div class="news-item">
+              <a href="item.html"><span class="news-title">お知らせ</span></a>
+            </div>
+            """);
+        FakeArticleStore store = new();
+
+        await CreateCrawler(fetcher, store, Target with { PageUrl = registeredUrl })
+            .RunAsync(CancellationToken.None);
+
+        (_, var articles) = Assert.Single(store.Saved);
+
+        Assert.Equal("https://example.com/news/item.html", Assert.Single(articles).Url);
+    }
+
+    [Fact]
     public async Task RunAsync_DisallowedByRobots_DoesNotFetchPage() {
         FakePageFetcher fetcher = new();
         fetcher.SetContent(RobotsUrl, "User-agent: *\nDisallow: /news/\n");

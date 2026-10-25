@@ -99,7 +99,7 @@ public sealed class CrawlerIntegrationTests(PostgresFixture fixture) : DatabaseT
             // robots.txt は登録していないため取得失敗となり、許可として扱われる。
             return Task.FromResult(url == pageUrl
                 ? PageFetchResult.Success(
-                    Encoding.UTF8.GetBytes(html), declaredCharset: null, FetchedAt)
+                    Encoding.UTF8.GetBytes(html), declaredCharset: null, url, FetchedAt)
                 : PageFetchResult.Failure("登録されていないURL", FetchedAt));
         }
     }

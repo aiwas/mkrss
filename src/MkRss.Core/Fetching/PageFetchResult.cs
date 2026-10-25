@@ -14,6 +14,10 @@ namespace MkRss.Core.Fetching;
 /// <param name="DeclaredCharset">
 /// HTTPの応答が申告した文字コードの名前。申告が無かった場合と失敗した場合は <see langword="null"/>。
 /// </param>
+/// <param name="FinalUrl">
+/// 内容を返したURL。リダイレクトを辿った場合は、要求したURLではなく最後のURLになる。
+/// 失敗した場合は <see langword="null"/>。
+/// </param>
 /// <param name="FailureReason">失敗の理由。成功した場合は <see langword="null"/>。</param>
 /// <param name="FetchedAt">取得を試みた日時。</param>
 /// <remarks>
@@ -24,22 +28,24 @@ namespace MkRss.Core.Fetching;
 public sealed record PageFetchResult(
     byte[]? Content,
     string? DeclaredCharset,
+    Uri? FinalUrl,
     string? FailureReason,
     DateTimeOffset FetchedAt) {
     /// <summary>取得に成功したかどうか。</summary>
-    [MemberNotNullWhen(true, nameof(Content))]
-    public bool IsSuccess => Content is not null;
+    [MemberNotNullWhen(true, nameof(Content), nameof(FinalUrl))]
+    public bool IsSuccess => Content is not null && FinalUrl is not null;
 
     /// <summary>成功した結果を作る。</summary>
     public static PageFetchResult Success(
         byte[] content,
         string? declaredCharset,
+        Uri finalUrl,
         DateTimeOffset fetchedAt) {
-        return new PageFetchResult(content, declaredCharset, null, fetchedAt);
+        return new PageFetchResult(content, declaredCharset, finalUrl, null, fetchedAt);
     }
 
     /// <summary>失敗した結果を作る。</summary>
     public static PageFetchResult Failure(string reason, DateTimeOffset fetchedAt) {
-        return new PageFetchResult(null, null, reason, fetchedAt);
+        return new PageFetchResult(null, null, null, reason, fetchedAt);
     }
 }

@@ -78,10 +78,12 @@ public sealed class Crawler {
         IReadOnlyList<ExtractedArticle> articles;
 
         try {
+            // 相対URLは登録したURLではなく、リダイレクトを辿った後のURLを基準に解決する。
+            // ブラウザと同じ基準にしないと、/news → /news/ のようなリダイレクトでリンク先がずれる。
             articles = HtmlArticleExtractor.Extract(
                 page.Content,
                 page.DeclaredCharset,
-                target.PageUrl,
+                page.FinalUrl,
                 target.Rule,
                 page.FetchedAt);
         } catch (Exception exception) when (exception is not OperationCanceledException) {

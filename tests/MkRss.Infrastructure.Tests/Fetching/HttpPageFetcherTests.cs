@@ -71,6 +71,34 @@ public sealed class HttpPageFetcherTests {
     }
 
     [Fact]
+    public async Task FetchAsync_Redirected_ReturnsFinalUrl() {
+        // HttpClient はリダイレクトを辿ると、RequestMessage.RequestUri を最終的なURLに書き換える。
+        // ページ内の相対URLはこのURLを基準に解決する必要がある。
+        Uri redirectedUrl = new("https://example.com/news/index.html");
+        StubHttpMessageHandler handler = new((_, _) => {
+            HttpResponseMessage response = Html("<html></html>");
+            response.RequestMessage = new HttpRequestMessage(HttpMethod.Get, redirectedUrl);
+
+            return Task.FromResult(response);
+        });
+        HttpPageFetcher fetcher = CreateFetcher(handler);
+
+        PageFetchResult actual = await fetcher.FetchAsync(PageUrl, CancellationToken.None);
+
+        Assert.Equal(redirectedUrl, actual.FinalUrl);
+    }
+
+    [Fact]
+    public async Task FetchAsync_NotRedirected_ReturnsRequestedUrl() {
+        StubHttpMessageHandler handler = new(Html("<html></html>"));
+        HttpPageFetcher fetcher = CreateFetcher(handler);
+
+        PageFetchResult actual = await fetcher.FetchAsync(PageUrl, CancellationToken.None);
+
+        Assert.Equal(PageUrl, actual.FinalUrl);
+    }
+
+    [Fact]
     public async Task FetchAsync_SendsConfiguredUserAgent() {
         StubHttpMessageHandler handler = new(Html("<html></html>"));
         HttpPageFetcher fetcher = CreateFetcher(handler);

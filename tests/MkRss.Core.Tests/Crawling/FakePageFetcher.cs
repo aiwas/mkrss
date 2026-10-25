@@ -23,12 +23,20 @@ internal sealed class FakePageFetcher : IPageFetcher {
     /// <summary>UTF-8 のページを返すよう登録する。文字コードの申告は無いものとして扱う。</summary>
     public void SetContent(Uri url, string content) {
         _responses[url] = PageFetchResult.Success(
-            Encoding.UTF8.GetBytes(content), declaredCharset: null, FetchedAt);
+            Encoding.UTF8.GetBytes(content), declaredCharset: null, url, FetchedAt);
     }
 
     /// <summary>任意のバイト列と申告内容を返すよう登録する。</summary>
     public void SetContent(Uri url, byte[] content, string? declaredCharset) {
-        _responses[url] = PageFetchResult.Success(content, declaredCharset, FetchedAt);
+        _responses[url] = PageFetchResult.Success(content, declaredCharset, url, FetchedAt);
+    }
+
+    /// <summary>
+    /// <paramref name="url"/> へのリダイレクトを辿った結果として、<paramref name="finalUrl"/> の内容を返すよう登録する。
+    /// </summary>
+    public void SetRedirectedContent(Uri url, Uri finalUrl, string content) {
+        _responses[url] = PageFetchResult.Success(
+            Encoding.UTF8.GetBytes(content), declaredCharset: null, finalUrl, FetchedAt);
     }
 
     public void SetFailure(Uri url, string reason) {
