@@ -1,9 +1,7 @@
 @inherits LayoutComponentBase
 
-<MudThemeProvider @ref="_themeProvider"
-                  @bind-IsDarkMode="_isDarkMode"
-                  Theme="Theme"
-                  ObserveSystemDarkModeChange="true" />
+@* ダークモードは使わない。IsDarkMode を指定しなければ、OSの設定にかかわらず常にライトで表示する。 *@
+<MudThemeProvider Theme="Theme" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -45,19 +43,4 @@
             },
         },
     };
-
-    private MudThemeProvider? _themeProvider;
-    private bool _isDarkMode;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender) {
-        if (!firstRender || _themeProvider is null) {
-            return;
-        }
-
-        // OSの設定に合わせる。JS相互運用を伴うため、事前レンダリングでは実行されない
-        // OnAfterRenderAsync で行う。
-        _isDarkMode = await _themeProvider.GetSystemDarkModeAsync();
-
-        StateHasChanged();
-    }
 }
