@@ -85,7 +85,7 @@ public sealed class Crawler {
                 target.Rule,
                 page.FetchedAt);
         } catch (Exception exception) when (exception is not OperationCanceledException) {
-            // セレクタの構文はDB登録時に検証していないため、壊れた規則が登録されうる。
+            // 管理UIは登録時にセレクタの構文を検証するが、SQLで直接登録した規則は検証を通らない。
             // 例外の型は抽出に使うライブラリの都合で決まるので、型を限定せずに受け止める。
             // キャンセルだけは失敗として扱わず、呼び出し側へ伝える。
             _logger.LogWarning(
