@@ -37,8 +37,8 @@
             <MudTd DataLabel="開始" Class="mkrss-mono">@DisplayTime.Format(run.StartedAt)</MudTd>
             <MudTd DataLabel="所要時間" Class="mkrss-mono">@FormatDuration(run)</MudTd>
             <MudTd DataLabel="状態">
-                <MudChip T="string" Size="Size.Small" Color="@StatusColor(run.Status)">
-                    @StatusLabel(run.Status)
+                <MudChip T="string" Size="Size.Small" Color="@StatusColor(run)">
+                    @StatusLabel(run)
                 </MudChip>
             </MudTd>
             <MudTd DataLabel="新規の記事">@run.NewArticleCount</MudTd>
@@ -78,7 +78,7 @@
                                             <td>
                                                 <MudLink Href="@($"/admin/sites/{site.SiteId}")">@site.SiteName</MudLink>
                                             </td>
-                                            <td>@OutcomeLabel(site.Outcome)</td>
+                                            <td>@OutcomeLabel(site)</td>
                                             <td>@site.ExtractedArticleCount</td>
                                             <td>@site.NewArticleCount</td>
                                             <td>@site.FailureReason</td>
@@ -94,7 +94,7 @@
     </MudTable>
 
     <MudText Typo="Typo.caption" Class="mt-2 ml-2 d-block">
-        直近 @RunCount 件を表示しています。抽出が0件のサイトは、セレクタが機能していない可能性があります。
+        直近 @RunCount 件を表示しています。「要確認」は、記事を抽出できなかったサイトを含む実行です。セレクタが機能していない可能性があります。
     </MudText>
 }
 
@@ -145,30 +145,42 @@
         };
     }
 
-    private static string StatusLabel(string status) {
-        return status switch {
+    private static string StatusLabel(CrawlRunStatus run) {
+        if (run.NeedsReview) {
+            return "要確認";
+        }
+
+        return run.Status switch {
             "running" => "実行中",
             "succeeded" => "成功",
             "failed" => "失敗あり",
-            _ => status,
+            _ => run.Status,
         };
     }
 
-    private static Color StatusColor(string status) {
-        return status switch {
+    private static Color StatusColor(CrawlRunStatus run) {
+        if (run.NeedsReview) {
+            return Color.Warning;
+        }
+
+        return run.Status switch {
             "succeeded" => Color.Success,
             "failed" => Color.Error,
             _ => Color.Default,
         };
     }
 
-    private static string OutcomeLabel(string outcome) {
-        return outcome switch {
+    private static string OutcomeLabel(CrawlRunSiteStatus site) {
+        if (site.ExtractedNothing) {
+            return "成功 (抽出0件)";
+        }
+
+        return site.Outcome switch {
             "succeeded" => "成功",
             "fetch_failed" => "取得に失敗",
             "extraction_failed" => "抽出に失敗",
             "disallowed_by_robots" => "robots.txt により除外",
-            _ => outcome,
+            _ => site.Outcome,
         };
     }
 }

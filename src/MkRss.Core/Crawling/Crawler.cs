@@ -97,6 +97,12 @@ public sealed class Crawler {
 
         int newArticleCount = await _store.SaveNewAsync(target.Id, articles, cancellationToken);
 
+        // 0件は失敗として扱わないが、セレクタが機能していない可能性が高いため警告として残す。
+        // 管理UIを開かなくても、ログから気づけるようにする。
+        if (articles.Count == 0) {
+            _logger.LogWarning("抽出0件: {Site} (抽出規則を確認すること)", target.Name);
+        }
+
         _logger.LogInformation(
             "処理完了: {Site} (抽出: {Extracted}件、新規: {Count}件)",
             target.Name,

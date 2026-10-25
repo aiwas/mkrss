@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -35,7 +36,17 @@ public sealed record CrawlRunSiteStatus(
     string Outcome,
     int ExtractedArticleCount,
     int NewArticleCount,
-    string? FailureReason);
+    string? FailureReason) {
+    /// <summary>
+    /// 処理は成功したが、記事を1件も抽出できなかったかどうか。
+    /// </summary>
+    /// <remarks>
+    /// セレクタが機能していないか、ページ構造が変わった可能性が高い。
+    /// 例外にならないため結末は <c>succeeded</c> のまま記録され、この判定でしか見分けられない。
+    /// 結末として保存せず、読み出すときに判定する。基準を変えたときに過去の記録まで追随させるため。
+    /// </remarks>
+    public bool ExtractedNothing => Outcome == "succeeded" && ExtractedArticleCount == 0;
+}
 
 /// <summary>
 /// クロール実行の記録。
@@ -56,7 +67,15 @@ public sealed record CrawlRunStatus(
     string Status,
     int NewArticleCount,
     string? ErrorMessage,
-    IReadOnlyList<CrawlRunSiteStatus> Sites);
+    IReadOnlyList<CrawlRunSiteStatus> Sites) {
+    /// <summary>
+    /// 失敗は無いが、記事を抽出できなかったサイトを含むかどうか。
+    /// </summary>
+    /// <remarks>
+    /// 失敗したサイトがある実行は対象外とする。失敗のほうが重く、そちらとして示せば足りるため。
+    /// </remarks>
+    public bool NeedsReview => Status == "succeeded" && Sites.Any(site => site.ExtractedNothing);
+}
 
 /// <summary>
 /// クロール実行の記録を残し、読み出す。
