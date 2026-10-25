@@ -11,7 +11,9 @@ public enum CrawlOutcome {
     /// <summary>取得・抽出・保存まで到達した。</summary>
     Succeeded,
 
-    /// <summary>ページを取得できなかった。</summary>
+    /// <summary>
+    /// ページを取得できなかった。robots.txt を取得できず、巡回してよいか判断できなかった場合も含む。
+    /// </summary>
     FetchFailed,
 
     /// <summary>取得はできたが、抽出規則を適用できなかった。</summary>

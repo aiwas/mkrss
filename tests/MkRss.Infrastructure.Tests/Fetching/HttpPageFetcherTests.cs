@@ -135,6 +135,19 @@ public sealed class HttpPageFetcherTests {
         Assert.Equal(Now, actual.FetchedAt);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task FetchAsync_UnsuccessfulStatusCode_ReturnsFailureStatusCode(HttpStatusCode status) {
+        // robots.txt は 4xx と 5xx で扱いが異なる(RFC 9309)。理由の文字列ではなく値で判別できるようにする。
+        StubHttpMessageHandler handler = new(new HttpResponseMessage(status));
+        HttpPageFetcher fetcher = CreateFetcher(handler);
+
+        PageFetchResult actual = await fetcher.FetchAsync(PageUrl, CancellationToken.None);
+
+        Assert.Equal((int)status, actual.FailureStatusCode);
+    }
+
     [Fact]
     public async Task FetchAsync_ShiftJisCharsetInContentType_IsReportedWithoutDecoding() {
         // 日本語サイトでは Shift_JIS が現役で使われている。
@@ -261,6 +274,7 @@ public sealed class HttpPageFetcherTests {
 
         Assert.False(actual.IsSuccess);
         Assert.Contains("名前解決に失敗しました", actual.FailureReason);
+        Assert.Null(actual.FailureStatusCode);
     }
 
     [Fact]

@@ -45,7 +45,7 @@ public sealed class Crawler {
         _logger.LogInformation("クロール開始 (対象: {Count}件)", targets.Count);
 
         List<SiteCrawlResult> results = [];
-        Dictionary<string, RobotsTxt?> robotsByOrigin = [];
+        Dictionary<string, RobotsPolicy> robotsByOrigin = [];
 
         foreach (CrawlTarget target in targets) {
             results.Add(await CrawlAsync(target, robotsByOrigin, cancellationToken));
@@ -56,12 +56,11 @@ public sealed class Crawler {
 
     private async Task<SiteCrawlResult> CrawlAsync(
         CrawlTarget target,
-        Dictionary<string, RobotsTxt?> robotsByOrigin,
+        Dictionary<string, RobotsPolicy> robotsByOrigin,
         CancellationToken cancellationToken) {
-        if (!await IsAllowedAsync(target.PageUrl, robotsByOrigin, cancellationToken)) {
-            _logger.LogInformation("robots.txt により除外: {Site}", target.Name);
-
-            return new SiteCrawlResult(target.Id, CrawlOutcome.DisallowedByRobots, 0, 0, null);
+        if (await CheckRobotsAsync(target, target.PageUrl, robotsByOrigin, cancellationToken)
+            is SiteCrawlResult refused) {
+            return refused;
         }
 
         PageFetchResult page = await _fetcher.FetchAsync(target.PageUrl, cancellationToken);
@@ -73,6 +72,14 @@ public sealed class Crawler {
 
             return new SiteCrawlResult(
                 target.Id, CrawlOutcome.FetchFailed, 0, 0, page.FailureReason);
+        }
+
+        // リダイレクト先は、取得する前には分からない。取得した後に、その場所の robots.txt で確かめる。
+        // リダイレクト先への1回のリクエストは防げないが、拒否されていれば内容は使わない。
+        if (page.FinalUrl != target.PageUrl
+            && await CheckRobotsAsync(target, page.FinalUrl, robotsByOrigin, cancellationToken)
+                is SiteCrawlResult refusedAfterRedirect) {
+            return refusedAfterRedirect;
         }
 
         IReadOnlyList<ExtractedArticle> articles;
@@ -116,15 +123,38 @@ public sealed class Crawler {
     }
 
     /// <summary>
-    /// robots.txt に照らして <paramref name="pageUrl"/> の取得が許可されているかを判定する。
+    /// robots.txt に照らして <paramref name="url"/> を取得してよいかを確かめる。
+    /// 取得してよい場合は <see langword="null"/>、そうでない場合はそのサイトの結果を返す。
     /// </summary>
-    /// <remarks>
-    /// robots.txt を取得できない場合は許可として扱う。
-    /// 設置していないサイトが多数あり、それらを巡回できなくなるほうが実害が大きいため。
-    /// </remarks>
-    private async Task<bool> IsAllowedAsync(
+    private async Task<SiteCrawlResult?> CheckRobotsAsync(
+        CrawlTarget target,
+        Uri url,
+        Dictionary<string, RobotsPolicy> robotsByOrigin,
+        CancellationToken cancellationToken) {
+        RobotsPolicy robots = await GetRobotsPolicyAsync(url, robotsByOrigin, cancellationToken);
+
+        if (robots.UnreachableReason is not null) {
+            string reason = $"robots.txt を取得できない ({robots.UnreachableReason})";
+            _logger.LogWarning("取得失敗: {Site} ({Reason})", target.Name, reason);
+
+            return new SiteCrawlResult(target.Id, CrawlOutcome.FetchFailed, 0, 0, reason);
+        }
+
+        if (robots.Rules?.IsAllowed(url.PathAndQuery, _options.ProductToken) == false) {
+            _logger.LogInformation("robots.txt により除外: {Site} ({Url})", target.Name, url);
+
+            return new SiteCrawlResult(target.Id, CrawlOutcome.DisallowedByRobots, 0, 0, null);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// <paramref name="pageUrl"/> の origin に適用する robots.txt を返す。
+    /// </summary>
+    private async Task<RobotsPolicy> GetRobotsPolicyAsync(
         Uri pageUrl,
-        Dictionary<string, RobotsTxt?> robotsByOrigin,
+        Dictionary<string, RobotsPolicy> robotsByOrigin,
         CancellationToken cancellationToken) {
         // 1回のクロール中は同じ origin のrobots.txtを取得し直さない。
         // 同じサイトの複数の一覧ページを別々の巡回対象として登録できるため。
@@ -132,25 +162,46 @@ public sealed class Crawler {
         // Uri.Authority はスキームを含まないため、キーには使えない。
         string origin = pageUrl.GetLeftPart(UriPartial.Authority);
 
-        if (!robotsByOrigin.TryGetValue(origin, out RobotsTxt? robots)) {
+        if (!robotsByOrigin.TryGetValue(origin, out RobotsPolicy? robots)) {
             robots = await FetchRobotsAsync(pageUrl, cancellationToken);
             robotsByOrigin[origin] = robots;
         }
 
-        return robots is null || robots.IsAllowed(pageUrl.PathAndQuery, _options.ProductToken);
+        return robots;
     }
 
     /// <summary>
-    /// robots.txt を取得して解釈する。取得できない場合は <see langword="null"/> を返す。
+    /// robots.txt を取得して解釈する。
     /// </summary>
     /// <remarks>
     /// 文字コードは UTF-8 として扱う。RFC 9309 がそう定めているため、
     /// HTMLのように申告やページ内の宣言を見て判定する必要はない。
     /// </remarks>
-    private async Task<RobotsTxt?> FetchRobotsAsync(Uri pageUrl, CancellationToken cancellationToken) {
+    private async Task<RobotsPolicy> FetchRobotsAsync(Uri pageUrl, CancellationToken cancellationToken) {
         PageFetchResult result = await _fetcher.FetchAsync(
             new Uri(pageUrl, RobotsPath), cancellationToken);
 
-        return result.IsSuccess ? RobotsTxt.Parse(Encoding.UTF8.GetString(result.Content)) : null;
+        if (result.IsSuccess) {
+            return new RobotsPolicy(RobotsTxt.Parse(Encoding.UTF8.GetString(result.Content)), null);
+        }
+
+        // RFC 9309 : 5xx と、応答を受け取れない場合(ネットワークエラー、タイムアウト)は全面的な拒否とみなす。
+        // 429 は 4xx だが同じ扱いにする。相手が負荷を嫌っているときに巡回を続けないため(Google と同じ扱い)。
+        if (result.FailureStatusCode is null or 429 or >= 500) {
+            return new RobotsPolicy(null, result.FailureReason);
+        }
+
+        // それ以外の 4xx は robots.txt が無いものとして、制限なしで巡回する(RFC 9309)。
+        // 設置していないサイトが多数あるため。
+        return new RobotsPolicy(null, null);
     }
+
+    /// <summary>
+    /// origin ごとの robots.txt の取得結果。
+    /// </summary>
+    /// <param name="Rules">解釈した内容。設置されていない場合は <see langword="null"/> で、制限なしを表す。</param>
+    /// <param name="UnreachableReason">
+    /// 取得できなかった理由。取得できなかった場合は巡回しない。それ以外は <see langword="null"/>。
+    /// </param>
+    private sealed record RobotsPolicy(RobotsTxt? Rules, string? UnreachableReason);
 }

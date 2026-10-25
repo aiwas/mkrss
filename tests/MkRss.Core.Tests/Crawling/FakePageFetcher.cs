@@ -39,8 +39,12 @@ internal sealed class FakePageFetcher : IPageFetcher {
             Encoding.UTF8.GetBytes(content), declaredCharset: null, finalUrl, FetchedAt);
     }
 
-    public void SetFailure(Uri url, string reason) {
-        _responses[url] = PageFetchResult.Failure(reason, FetchedAt);
+    /// <summary>
+    /// 取得に失敗するよう登録する。<paramref name="statusCode"/> を省略すると、
+    /// 応答を受け取れなかった失敗(ネットワークエラーなど)になる。
+    /// </summary>
+    public void SetFailure(Uri url, string reason, int? statusCode = null) {
+        _responses[url] = PageFetchResult.Failure(reason, FetchedAt, statusCode);
     }
 
     public Task<PageFetchResult> FetchAsync(Uri url, CancellationToken cancellationToken) {
@@ -48,9 +52,9 @@ internal sealed class FakePageFetcher : IPageFetcher {
 
         RequestedUrls.Add(url);
 
-        // 登録していないURLは取得失敗として扱う。robots.txt が存在しないサイトを表現できる。
+        // 登録していないURLは 404 として扱う。robots.txt を設置していないサイトを表現できる。
         return Task.FromResult(_responses.TryGetValue(url, out PageFetchResult? response)
             ? response
-            : PageFetchResult.Failure("登録されていないURL", FetchedAt));
+            : PageFetchResult.Failure("HTTP 404 Not Found", FetchedAt, 404));
     }
 }

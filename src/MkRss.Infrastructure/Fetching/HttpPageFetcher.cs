@@ -53,7 +53,7 @@ public sealed class HttpPageFetcher : IPageFetcher {
                 string reason = $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}".TrimEnd();
                 _logger.LogWarning("ページ取得失敗: {Url} ({Reason})", url, reason);
 
-                return PageFetchResult.Failure(reason, fetchedAt);
+                return PageFetchResult.Failure(reason, fetchedAt, (int)response.StatusCode);
             }
 
             // 申告の時点で分かる場合は、本文を読まずに諦める。

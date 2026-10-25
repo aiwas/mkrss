@@ -134,6 +134,110 @@ public sealed class CrawlerTests {
     }
 
     [Fact]
+    public async Task RunAsync_RobotsNotFound_CrawlsWithoutRestriction() {
+        // RFC 9309 : 4xx は robots.txt が無いものとして扱い、制限なしで巡回してよい。
+        FakePageFetcher fetcher = new();
+        fetcher.SetFailure(RobotsUrl, "HTTP 404 Not Found", 404);
+        fetcher.SetContent(PageUrl, HtmlFixture.Load("news-listing.html"));
+        FakeArticleStore store = new();
+
+        CrawlReport report = await CreateCrawler(fetcher, store, Target).RunAsync(CancellationToken.None);
+
+        Assert.Equal(CrawlOutcome.Succeeded, Assert.Single(report.Sites).Outcome);
+    }
+
+    [Fact]
+    public async Task RunAsync_RobotsServerError_FailsWithoutFetchingPage() {
+        // RFC 9309 : 5xx は全面的な拒否とみなす。サーバーが不調なので、取得失敗として記録する。
+        FakePageFetcher fetcher = new();
+        fetcher.SetFailure(RobotsUrl, "HTTP 503 Service Unavailable", 503);
+        fetcher.SetContent(PageUrl, HtmlFixture.Load("news-listing.html"));
+        FakeArticleStore store = new();
+
+        CrawlReport report = await CreateCrawler(fetcher, store, Target).RunAsync(CancellationToken.None);
+
+        SiteCrawlResult site = Assert.Single(report.Sites);
+
+        Assert.Equal(CrawlOutcome.FetchFailed, site.Outcome);
+        Assert.Contains("robots.txt", site.FailureReason);
+        Assert.Contains("503", site.FailureReason);
+        Assert.DoesNotContain(PageUrl, fetcher.RequestedUrls);
+    }
+
+    [Fact]
+    public async Task RunAsync_RobotsUnreachable_FailsWithoutFetchingPage() {
+        // 応答を受け取れない場合(ネットワークエラー、タイムアウト)も 5xx と同じく拒否とみなす。
+        FakePageFetcher fetcher = new();
+        fetcher.SetFailure(RobotsUrl, "タイムアウト (30秒)");
+        fetcher.SetContent(PageUrl, HtmlFixture.Load("news-listing.html"));
+        FakeArticleStore store = new();
+
+        CrawlReport report = await CreateCrawler(fetcher, store, Target).RunAsync(CancellationToken.None);
+
+        Assert.Equal(CrawlOutcome.FetchFailed, Assert.Single(report.Sites).Outcome);
+        Assert.DoesNotContain(PageUrl, fetcher.RequestedUrls);
+    }
+
+    [Fact]
+    public async Task RunAsync_RobotsTooManyRequests_FailsWithoutFetchingPage() {
+        // 429 は 4xx だが、到達不能として扱う。相手が負荷を嫌っているときに巡回を続けないため。
+        // RFC 9309 の字面(4xx は制限なし)からは外れる。Google と同じ扱い。
+        FakePageFetcher fetcher = new();
+        fetcher.SetFailure(RobotsUrl, "HTTP 429 Too Many Requests", 429);
+        fetcher.SetContent(PageUrl, HtmlFixture.Load("news-listing.html"));
+        FakeArticleStore store = new();
+
+        CrawlReport report = await CreateCrawler(fetcher, store, Target).RunAsync(CancellationToken.None);
+
+        Assert.Equal(CrawlOutcome.FetchFailed, Assert.Single(report.Sites).Outcome);
+        Assert.DoesNotContain(PageUrl, fetcher.RequestedUrls);
+    }
+
+    [Fact]
+    public async Task RunAsync_RedirectedToDisallowedPath_DoesNotSaveArticles() {
+        // 判定は取得の前に登録したURLで行うため、リダイレクト先は取得した後に改めて確かめる。
+        Uri finalUrl = new("https://example.com/private/news/");
+        FakePageFetcher fetcher = new();
+        fetcher.SetContent(RobotsUrl, "User-agent: *\nDisallow: /private/\n");
+        fetcher.SetRedirectedContent(PageUrl, finalUrl, HtmlFixture.Load("news-listing.html"));
+        FakeArticleStore store = new();
+
+        CrawlReport report = await CreateCrawler(fetcher, store, Target).RunAsync(CancellationToken.None);
+
+        Assert.Equal(CrawlOutcome.DisallowedByRobots, Assert.Single(report.Sites).Outcome);
+        Assert.Empty(store.Saved);
+    }
+
+    [Fact]
+    public async Task RunAsync_RedirectedToOtherOriginDisallowingIt_DoesNotSaveArticles() {
+        // robots.txt の適用範囲は origin ごと。リダイレクト先の origin の robots.txt に従う。
+        Uri finalUrl = new("https://news.example.net/");
+        FakePageFetcher fetcher = new();
+        fetcher.SetContent(new Uri("https://news.example.net/robots.txt"), "User-agent: *\nDisallow: /\n");
+        fetcher.SetRedirectedContent(PageUrl, finalUrl, HtmlFixture.Load("news-listing.html"));
+        FakeArticleStore store = new();
+
+        CrawlReport report = await CreateCrawler(fetcher, store, Target).RunAsync(CancellationToken.None);
+
+        Assert.Equal(CrawlOutcome.DisallowedByRobots, Assert.Single(report.Sites).Outcome);
+        Assert.Empty(store.Saved);
+    }
+
+    [Fact]
+    public async Task RunAsync_RedirectedToOtherOriginWithUnreachableRobots_Fails() {
+        Uri finalUrl = new("https://news.example.net/");
+        FakePageFetcher fetcher = new();
+        fetcher.SetFailure(new Uri("https://news.example.net/robots.txt"), "HTTP 503 Service Unavailable", 503);
+        fetcher.SetRedirectedContent(PageUrl, finalUrl, HtmlFixture.Load("news-listing.html"));
+        FakeArticleStore store = new();
+
+        CrawlReport report = await CreateCrawler(fetcher, store, Target).RunAsync(CancellationToken.None);
+
+        Assert.Equal(CrawlOutcome.FetchFailed, Assert.Single(report.Sites).Outcome);
+        Assert.Empty(store.Saved);
+    }
+
+    [Fact]
     public async Task RunAsync_TargetsOnSameHost_FetchesRobotsOnce() {
         CrawlTarget second = Target with {
             Id = new Guid("22222222-2222-2222-2222-222222222222"),

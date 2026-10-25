@@ -96,11 +96,11 @@ public sealed class CrawlerIntegrationTests(PostgresFixture fixture) : DatabaseT
         public Task<PageFetchResult> FetchAsync(Uri url, CancellationToken cancellationToken) {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // robots.txt は登録していないため取得失敗となり、許可として扱われる。
+            // robots.txt は 404 を返す。設置していないサイトとして、制限なしで巡回される。
             return Task.FromResult(url == pageUrl
                 ? PageFetchResult.Success(
                     Encoding.UTF8.GetBytes(html), declaredCharset: null, url, FetchedAt)
-                : PageFetchResult.Failure("登録されていないURL", FetchedAt));
+                : PageFetchResult.Failure("HTTP 404 Not Found", FetchedAt, 404));
         }
     }
 }
