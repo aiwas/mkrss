@@ -11,10 +11,12 @@
     @* MudBlazor の規則を上書きするため、必ず後に置く。 *@
     <link href="@Assets["admin.css"]" rel="stylesheet" />
     <title>mkrss</title>
-    <HeadOutlet />
+    <HeadOutlet @rendermode="InteractiveServer" />
 </head>
 <body>
-    <Routes />
+    @* レイアウトを含めて全体を対話的にする。ページごとに指定するとレイアウトが静的なまま残り、
+       そこに置いた MudBlazor のプロバイダ(Snackbar など)やテーマの切り替えが動かない。 *@
+    <Routes @rendermode="InteractiveServer" />
     @* blazor.web.js を先に読む。MudBlazor の部品はJS相互運用を前提にしているため、
        順序を入れ替えると起動時の相互運用が成立しないことがある。 *@
     <script src="_framework/blazor.web.js"></script>
