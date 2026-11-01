@@ -115,6 +115,58 @@ public sealed class NpgsqlCrawlRunLogTests(PostgresFixture fixture) : DatabaseTe
     }
 
     [Fact]
+    public async Task FailInterruptedAsync_MarksRunningRowAsFailed() {
+        // プロセスが強制終了されると、終了を記録できず running のまま残る。
+        NpgsqlCrawlRunLog log = new(Fixture.DataSource);
+        await log.StartAsync(CancellationToken.None);
+
+        await log.FailInterruptedAsync(CancellationToken.None);
+
+        CrawlRunStatus latest = await FindLatestAsync(log);
+
+        Assert.Equal("failed", latest.Status);
+        Assert.NotNull(latest.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task FailInterruptedAsync_LeavesFinishedAtEmpty() {
+        // いつ止まったかは分からない。片付けた時刻を入れると、所要時間が実際より長く見える。
+        NpgsqlCrawlRunLog log = new(Fixture.DataSource);
+        await log.StartAsync(CancellationToken.None);
+
+        await log.FailInterruptedAsync(CancellationToken.None);
+
+        Assert.Null((await FindLatestAsync(log)).FinishedAt);
+    }
+
+    [Fact]
+    public async Task FailInterruptedAsync_LeavesFinishedRunsUnchanged() {
+        NpgsqlCrawlRunLog log = new(Fixture.DataSource);
+        Guid finished = await log.StartAsync(CancellationToken.None);
+        await log.FinishAsync(
+            finished, CrawlRunOutcome.Succeeded, CrawlReport.Empty, null, CancellationToken.None);
+
+        await log.FailInterruptedAsync(CancellationToken.None);
+
+        CrawlRunStatus latest = await FindLatestAsync(log);
+
+        Assert.Equal("succeeded", latest.Status);
+        Assert.Null(latest.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task FailInterruptedAsync_ReturnsNumberOfInterruptedRuns() {
+        NpgsqlCrawlRunLog log = new(Fixture.DataSource);
+        Guid finished = await StartAtAsync(log, "3 hours");
+        await log.FinishAsync(
+            finished, CrawlRunOutcome.Succeeded, CrawlReport.Empty, null, CancellationToken.None);
+        await StartAtAsync(log, "2 hours");
+        await StartAtAsync(log, "1 hour");
+
+        Assert.Equal(2, await log.FailInterruptedAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public async Task ListRecentAsync_ReturnsSiteBreakdown() {
         NpgsqlCrawlRunLog log = new(Fixture.DataSource);
         Guid runId = await log.StartAsync(CancellationToken.None);

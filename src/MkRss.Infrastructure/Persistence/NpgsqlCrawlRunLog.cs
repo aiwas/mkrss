@@ -36,6 +36,19 @@ public sealed class NpgsqlCrawlRunLog : ICrawlRunLog {
         """;
 
     /// <summary>
+    /// 終了が記録されていない実行を失敗にする。
+    /// </summary>
+    /// <remarks>
+    /// <c>finished_at</c> は書かない。いつ止まったかは分からず、この時刻を入れると
+    /// 停止から片付けるまでの時間が所要時間に含まれてしまうため。
+    /// </remarks>
+    private const string FailInterruptedSql = """
+        update crawl_runs
+        set status = 'failed', error_message = '実行中に中断された'
+        where status = 'running'
+        """;
+
+    /// <summary>
     /// 開始日時が同じ行の並びを固定するため、識別子を第2キーにする。
     /// </summary>
     private const string RecentSql = """
@@ -107,6 +120,13 @@ public sealed class NpgsqlCrawlRunLog : ICrawlRunLog {
         command.Parameters.Add(new NpgsqlParameter { Value = failureReasons });
 
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<int> FailInterruptedAsync(CancellationToken cancellationToken) {
+        await using NpgsqlCommand command = _dataSource.CreateCommand(FailInterruptedSql);
+
+        return await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     /// <inheritdoc />

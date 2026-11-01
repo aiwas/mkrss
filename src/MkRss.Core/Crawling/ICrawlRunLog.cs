@@ -114,6 +114,16 @@ public interface ICrawlRunLog {
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// 終了が記録されていない実行を、中断されたものとして失敗にする。
+    /// </summary>
+    /// <returns>失敗にした実行の件数。</returns>
+    /// <remarks>
+    /// プロセスが強制終了されると終了を記録できず、実行中のまま残る。
+    /// 実行中かどうかを記録だけでは区別できないため、まだ何も実行していない起動時にのみ呼ぶこと。
+    /// </remarks>
+    Task<int> FailInterruptedAsync(CancellationToken cancellationToken);
+
+    /// <summary>
     /// 新しい順に、最大 <paramref name="limit"/> 件の実行の記録を返す。
     /// </summary>
     /// <param name="limit">返す件数の上限。</param>

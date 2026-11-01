@@ -31,6 +31,9 @@ public sealed class CrawlBackgroundService : BackgroundService {
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
+        // 実行はここでしか行わないため、待ち受けを始める前なら実行中のものは無い。
+        await FailInterruptedRunsAsync(stoppingToken);
+
         while (!stoppingToken.IsCancellationRequested) {
             try {
                 await _queue.WaitForRequestAsync(stoppingToken);
@@ -50,6 +53,27 @@ public sealed class CrawlBackgroundService : BackgroundService {
             } finally {
                 _queue.Complete();
             }
+        }
+    }
+
+    /// <summary>
+    /// 前回のプロセスが終了を記録できずに残した実行を、失敗として片付ける。
+    /// </summary>
+    /// <remarks>
+    /// 片付けられなくてもクロールは続ける。管理UIに「実行中」と残るだけで、実行には影響しないため。
+    /// </remarks>
+    private async Task FailInterruptedRunsAsync(CancellationToken cancellationToken) {
+        try {
+            await using AsyncServiceScope scope = _scopeFactory.CreateAsyncScope();
+
+            ICrawlRunLog log = scope.ServiceProvider.GetRequiredService<ICrawlRunLog>();
+            int count = await log.FailInterruptedAsync(cancellationToken);
+
+            if (count > 0) {
+                _logger.LogWarning("中断された実行の記録を失敗にした ({Count}件)", count);
+            }
+        } catch (Exception exception) when (exception is not OperationCanceledException) {
+            _logger.LogWarning(exception, "中断された実行の記録を片付けられなかった");
         }
     }
 
